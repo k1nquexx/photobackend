@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Портфолио | Твое Имя</title>
+    <!-- Подключаем тот же файл стилей, чтобы дизайн был единым -->
+    <link rel="stylesheet" href="main.css">
+    <style>
+        /* Дополнительные стили ТОЛЬКО для страницы портфолио */
+
+        .portfolio-header {
+            padding: 150px 0 60px;
+            text-align: center;
+            border-bottom: 1px solid #222222;
+        }
+
+        .portfolio-title {
+            font-size: clamp(32px, 5vw, 60px);
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+
+        .portfolio-subtitle {
+            color: #888888;
+            font-size: 18px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Кнопки фильтрации */
+        .filter-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 40px 0;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: transparent;
+            color: #888888;
+            border: 1px solid #222222;
+            padding: 10px 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+        }
+
+        .filter-btn:hover, .filter-btn.active {
+            background: #e6cc98;
+            color: #050505;
+            border-color: #e6cc98;
+        }
+
+        /* Большая сетка галереи */
+        .full-gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            padding-bottom: 80px;
+        }
+
+        .gallery-item {
+            position: relative;
+            height: 400px;
+            overflow: hidden;
+            background: #111111;
+            cursor: pointer;
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.6s, filter 0.6s;
+            filter: grayscale(10%); /* Легкое обесцвечивание */
+        }
+
+        .gallery-item:hover img {
+            transform: scale(1.05);
+            filter: grayscale(0%);
+        }
+
+        /* Уведомление на пустой категории */
+        .no-results {
+            display: none;
+            text-align: center;
+            color: #888888;
+            padding: 50px 0;
+            grid-column: 1 / -1;
+            font-size: 18px;
+        }
+
+        /* Модальное окно (Lightbox) для портфолио */
+        .lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .lightbox.active {
+            display: flex;
+        }
+
+        .lightbox-content {
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+        }
+
+        .lightbox-img {
+            max-width: 100%;
+            max-height: 90vh;
+            object-fit: contain;
+            border: 1px solid #333;
+        }
+
+        .lightbox-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: #ffffff;
+            font-size: 30px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .lightbox-close:hover {
+            color: #e6cc98;
+        }
+
+        .lightbox-caption {
+            position: absolute;
+            bottom: -30px;
+            left: 0;
+            color: #e6cc98;
+            font-size: 16px;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Навигация (Единая с главной страницей) -->
+<nav class="navbar">
+    <div class="container nav-container">
+        <a href="index.html" class="logo">ФОТОГРАФ.</a>
+        <button class="menu-toggle" id="mobileMenuBtn">МЕНЮ</button>
+        <ul class="nav-links" id="navbarNav">
+            <li><a href="index.html#about">Обо мне</a></li>
+            <li><a href="portfolio.html" style="color: #e6cc98;">Портфолио</a></li>
+            <li><a href="index.html#calculator">Услуги и цены</a></li>
+            <li><a href="index.html#booking" class="btn-outline">Связаться</a></li>
+        </ul>
+    </div>
+</nav>
+
+<!-- Заголовок портфолио -->
+<header class="portfolio-header">
+    <div class="container">
+        <h1 class="portfolio-title">Полное портфолио</h1>
+        <p class="portfolio-subtitle">Визуальная история моих съемок. Выберите категорию, чтобы увидеть больше работ.</p>
+
+        <!-- Фильтры -->
+        <div class="filter-container">
+            <button class="filter-btn active" data-filter="all">Все работы</button>
+            <button class="filter-btn" data-filter="portrait">Портреты</button>
+            <button class="filter-btn" data-filter="event">Мероприятия</button>
+            <button class="filter-btn" data-filter="wedding">Свадьбы</button>
+        </div>
+    </div>
+</header>
+
+<!-- Сетка портфолио -->
+<section class="section pt-0" style="padding-top: 40px;">
+    <div class="container">
+        <div class="full-gallery-grid" id="galleryGrid">
+
+            <!-- Заглушки фото (Потом заменишь на свои img/...) -->
+            <!-- Портрет 1 -->
+            <div class="gallery-item portrait" data-category="portrait">
+                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='100%' height='100%' fill='%231a1a1a'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23555' font-family='Arial' font-size='24'>Студийный портрет 1</text></svg>" alt="Женский студийный портрет">
+            </div>
+
+            <!-- Мероприятие 1 -->
+            <div class="gallery-item event" data-category="event">
+                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='100%' height='100%' fill='%23151522'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23555' font-family='Arial' font-size='24'>Конференция / IT</text></svg>" alt="Репортаж с IT конференции">
+            </div>
+
+            <!-- Портрет 2 -->
+            <div class="gallery-item portrait" data-category="portrait">
+                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='100%' height='100%' fill='%23221a1a'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23555' font-family='Arial' font-size='24'>Street-style портрет</text></svg>" alt="Мужской уличный портрет">
+            </div>
+
+            <!-- Свадьба 1 -->
+            <div class="gallery-item wedding" data-category="wedding">
+                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='100%' height='100%' fill='%231a221f'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23555' font-family='Arial' font-size='24'>Утро невесты</text></svg>" alt="Утро невесты, сборы">
+            </div>
+
+            <!-- Мероприятие 2 -->
+            <div class="gallery-item event" data-category="event">
+                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='100%' height='100%' fill='%23221522'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23555' font-family='Arial' font-size='24'>Концерт / Клуб</text></svg>" alt="Репортаж с музыкального концерта">
+            </div>
+
+            <!-- Портрет 3 -->
+            <div class="gallery-item portrait" data-category="portrait">
+                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='100%' height='100%' fill='%23152222'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23555' font-family='Arial' font-size='24'>Бизнес-портрет</text></svg>" alt="Строгий бизнес-портрет для резюме">
+            </div>
+
+            <!-- Свадьба 2 -->
+            <div class="gallery-item wedding" data-category="wedding">
+                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='100%' height='100%' fill='%23222215'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23555' font-family='Arial' font-size='24'>Выездная регистрация</text></svg>" alt="Обмен кольцами на природе">
+            </div>
+
+            <!-- Мероприятие 3 -->
+            <div class="gallery-item event" data-category="event">
+                <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='600'><rect width='100%' height='100%' fill='%23111111'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23555' font-family='Arial' font-size='24'>Корпоратив</text></svg>" alt="Новогодний корпоратив компании">
+            </div>
+
+            <!-- Сообщение, если в категории нет фото -->
+            <div class="no-results" id="noResults">В этой категории пока нет фотографий.</div>
+
+        </div>
+    </div>
+</section>
+
+<!-- Лайтбокс (Модальное окно для полноэкранного фото) -->
+<div class="lightbox" id="portfolioLightbox">
+    <div class="lightbox-content">
+        <button class="lightbox-close" id="lightboxClose">×</button>
+        <img src="" alt="" class="lightbox-img" id="lightboxImg">
+        <div class="lightbox-caption" id="lightboxCaption"></div>
+    </div>
+</div>
+
+<!-- Футер (Единый с главной) -->
+<footer class="footer">
+    <div class="container footer-grid">
+        <div class="brand-col">
+            <h3>ФОТОГРАФ.</h3>
+            <p>Создаю визуальную историю вашего события. Доступен для съемок по всему миру.</p>
+        </div>
+        <div class="footer-col links-col">
+            <h4>Навигация</h4>
+            <ul>
+                <li><a href="index.html#about">Обо мне</a></li>
+                <li><a href="portfolio.html">Портфолио</a></li>
+                <li><a href="index.html#calculator">Услуги и цены</a></li>
+            </ul>
+        </div>
+        <div class="footer-col contact-col">
+            <h4>Контакты</h4>
+            <p>Email: <a href="mailto:hello@твояпочта.com">hello@твояпочта.com</a></p>
+            <div class="social-links">
+                <a href="#">VK</a>
+                <a href="#">Inst</a>
+                <a href="#">Behance</a>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- Подключаем логику портфолио в самом низу -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // 1. Мобильное меню
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const navbarNav = document.getElementById('navbarNav');
+
+        if (mobileMenuBtn && navbarNav) {
+            mobileMenuBtn.addEventListener('click', () => {
+                if (navbarNav.style.display === 'flex') {
+                    navbarNav.style.display = 'none';
+                } else {
+                    navbarNav.style.display = 'flex';
+                    navbarNav.style.flexDirection = 'column';
+                    navbarNav.style.position = 'absolute';
+                    navbarNav.style.top = '70px';
+                    navbarNav.style.left = '0';
+                    navbarNav.style.width = '100%';
+                    navbarNav.style.background = '#050505';
+                    navbarNav.style.padding = '20px';
+                    navbarNav.style.borderBottom = '1px solid #222222';
+                }
+            });
+        }
+
+        // 2. Фильтрация фотографий
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const galleryItems = document.querySelectorAll('.gallery-item');
+        const noResults = document.getElementById('noResults');
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Убираем активный класс у всех кнопок и даем нажатой
+                filterBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const filterValue = btn.getAttribute('data-filter');
+                let visibleCount = 0;
+
+                galleryItems.forEach(item => {
+                    if (filterValue === 'all' || item.getAttribute('data-category') === filterValue) {
+                        item.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+
+                // Показываем сообщение, если нет фото
+                if (visibleCount === 0) {
+                    noResults.style.display = 'block';
+                } else {
+                    noResults.style.display = 'none';
+                }
+            });
+        });
+
+        // 3. Лайтбокс (Увеличение фото по клику)
+        const lightbox = document.getElementById('portfolioLightbox');
+        const lightboxImg = document.getElementById('lightboxImg');
+        const lightboxCaption = document.getElementById('lightboxCaption');
+        const lightboxClose = document.getElementById('lightboxClose');
+
+        galleryItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const img = item.querySelector('img');
+                lightboxImg.src = img.src;
+                lightboxCaption.textContent = img.alt;
+                lightbox.classList.add('active');
+            });
+        });
+
+        // Закрытие по крестику
+        lightboxClose.addEventListener('click', () => {
+            lightbox.classList.remove('active');
+        });
+
+        // Закрытие при клике по фону
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) {
+                lightbox.classList.remove('active');
+            }
+        });
+
+        // Закрытие по клавише Esc
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && lightbox.classList.contains('active')) {
+                lightbox.classList.remove('active');
+            }
+        });
+    });
+</script>
+</body>
+</html>

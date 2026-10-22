@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель | Фотограф</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, Arial, sans-serif; }
+        body { background-color: #0c0c0c; color: #eee; padding: 25px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        /* Авторизация */
+        #loginBox {
+            max-width: 380px;
+            margin: 100px auto;
+            background: #181818;
+            padding: 35px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            text-align: center;
+        }
+        #loginBox h2 { color: #e6cc98; margin-bottom: 20px; }
+        #loginBox input {
+            width: 100%;
+            padding: 12px;
+            background: #252525;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        #loginBox button {
+            width: 100%;
+            padding: 12px;
+            background: #e6cc98;
+            border: none;
+            color: #111;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        #loginBox button:hover { background: #d4ba88; }
+        #loginError { color: #ea868f; margin-top: 10px; font-size: 14px; display: none; }
+
+        /* Шапка админки */
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #282828;
+        }
+        .admin-header h1 { color: #e6cc98; font-size: 26px; }
+        .header-actions { display: flex; gap: 10px; }
+        
+        button.btn {
+            background-color: #e6cc98;
+            border: none;
+            padding: 10px 18px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 5px;
+            color: #111;
+            transition: 0.2s;
+        }
+        button.btn:hover { background-color: #d4ba88; }
+        button.btn-outline {
+            background: transparent;
+            border: 1px solid #555;
+            color: #ccc;
+        }
+        button.btn-outline:hover { background: #222; color: #fff; border-color: #888; }
+
+        /* Карточки статистики */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #181818;
+            border: 1px solid #282828;
+            padding: 20px;
+            border-radius: 6px;
+        }
+        .stat-title { font-size: 13px; color: #888; text-transform: uppercase; margin-bottom: 8px; }
+        .stat-value { font-size: 28px; font-weight: bold; color: #e6cc98; }
+
+        /* Панель фильтров */
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            background: #181818;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #282828;
+            align-items: center;
+        }
+        .filter-bar input, .filter-bar select {
+            padding: 10px 14px;
+            background: #252525;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .filter-bar input { flex: 1; min-width: 250px; }
+
+        /* Таблица заявок */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background-color: #181818; border-radius: 6px; overflow: hidden; }
+        th, td { border: 1px solid #262626; padding: 12px 14px; text-align: left; vertical-align: top; font-size: 14px; }
+        th { background-color: #222; color: #e6cc98; font-size: 13px; text-transform: uppercase; }
+        tr:hover { background-color: #1a1a1a; }
+
+        select.status-select {
+            background-color: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+        select.status-select:focus { border-color: #e6cc98; outline: none; }
+
+        .url-input {
+            width: 100%;
+            padding: 6px 8px;
+            background: #252525;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .url-input:focus { border-color: #e6cc98; outline: none; }
+
+        .details-box {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 260px;
+        }
+        .details-textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 6px 8px;
+            background: #222;
+            border: 1px solid #444;
+            color: #eee;
+            border-radius: 4px;
+            font-size: 13px;
+            resize: vertical;
+        }
+        .details-textarea:focus { border-color: #e6cc98; outline: none; }
+
+        .datetime-box {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 190px;
+        }
+        .inline-inputs {
+            display: flex;
+            gap: 6px;
+        }
+        .input-sm {
+            padding: 5px 8px;
+            background: #222;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .input-sm:focus { border-color: #e6cc98; outline: none; }
+
+        .btn-sm {
+            padding: 5px 10px;
+            background: #e6cc98;
+            border: none;
+            color: #111;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-sm:hover { background: #d4ba88; }
+        .btn-approve { background: #28a745; color: #fff; margin-right: 5px; }
+        .btn-approve:hover { background: #218838; }
+
+        .btn-delete {
+            background: #8b1c1c;
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .btn-delete:hover { background: #ab2525; }
+
+        .badge-pending { color: #e6cc98; background: #2c2415; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .badge-approved { color: #75b798; background: #13281e; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+
+        .section-title { margin: 40px 0 15px; color: #e6cc98; font-size: 20px; }
+        .hidden { display: none !important; }
+        .save-indicator { font-size: 11px; color: #75b798; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Форма входа -->
+    <div id="loginBox">
+        <h2>🔒 Вход в панель управления</h2>
+        <input type="password" id="adminPassInput" placeholder="Введите пароль..." autofocus>
+        <button onclick="checkAdminPassword()">Войти</button>
+        <div id="loginError">Неверный пароль!</div>
+    </div>
+
+    <!-- Основная панель -->
+    <div id="adminPanel" class="hidden">
+        <div class="admin-header">
+            <h1>📋 Панель администратора</h1>
+            <div class="header-actions">
+                <a href="schedule.html" class="btn btn-outline" style="text-decoration:none; display:flex; align-items:center;">📅 Настроить окна записи</a>
+                <button class="btn" onclick="refreshAll()">🔄 Обновить</button>
+                <button class="btn btn-outline" onclick="logoutAdmin()">🚪 Выйти</button>
+            </div>
+        </div>
+
+        <!-- Карточки статистики -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">Всего заявок</div>
+                <div class="stat-value" id="statTotalCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Ожидаемый доход</div>
+                <div class="stat-value"><span id="statTotalIncome">0</span> ₽</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Новые заявки</div>
+                <div class="stat-value" id="statNewCount">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title">Завершено (Готово)</div>
+                <div class="stat-value" id="statCompletedCount">0</div>
+            </div>
+        </div>
+
+        <!-- Фильтр и поиск -->
+        <div class="filter-bar">
+            <input type="text" id="searchInput" placeholder="🔍 Поиск по имени или телефону клиента..." oninput="filterBookings()">
+            <select id="statusFilter" onchange="filterBookings()">
+                <option value="all">Все статусы</option>
+                <option value="Новая">Новая</option>
+                <option value="В обработке">В обработке</option>
+                <option value="Съемка проведена">Съемка проведена</option>
+                <option value="Готово">Готово</option>
+                <option value="Отменена">Отменена</option>
+            </select>
+        </div>
+
+        <!-- Таблица заявок -->
+        <table>
+            <thead>
+            <tr>
+                <th style="width: 50px;">ID</th>
+                <th style="width: 170px;">Клиент</th>
+                <th style="width: 240px;">📅 Дата, время и сумма</th>
+                <th>📝 Детали заказа (редактируемые)</th>
+                <th style="width: 160px;">Статус</th>
+                <th style="width: 180px;">Ссылка на диск</th>
+                <th style="width: 90px;">Действия</th>
+            </tr>
+            </thead>
+            <tbody id="bookingsTable">
+                <!-- Заполняется JS -->
+            </tbody>
+        </table>
+
+        <!-- Управление отзывами -->
+        <h2 class="section-title">💬 Модерация отзывов клиентов</h2>
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Автор</th>
+                <th>Оценка</th>
+                <th>Текст отзыва</th>
+                <th>Дата</th>
+                <th>Статус</th>
+                <th>Действия</th>
+            </tr>
+            </thead>
+            <tbody id="reviewsTable">
+                <!-- Заполняется JS -->
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+    const API_BASE = (window.location.protocol === 'file:' || (window.location.port && window.location.port !== '8080'))
+        ? 'http://localhost:8080'
+        : '';
+
+    let allBookingsList = [];
+
+    if (sessionStorage.getItem('isAdminLoggedIn') === 'true') {
+        showAdminPanel();
+    }
+
+    async function checkAdminPassword() {
+        const password = document.getElementById('adminPassInput').value;
+        const errDiv = document.getElementById('loginError');
+
+        try {
+            const res = await fetch(`${API_BASE}/api/admin/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(password)
+            });
+            const isOk = await res.json();
+            if (isOk) {
+                sessionStorage.setItem('isAdminLoggedIn', 'true');
+                errDiv.style.display = 'none';
+                showAdminPanel();
+            } else {
+                errDiv.style.display = 'block';
+            }
+        } catch (e) {
+            if (password === 'admin123') {
+                sessionStorage.setItem('isAdminLoggedIn', 'true');
+                showAdminPanel();
+            } else {
+                errDiv.style.display = 'block';
+            }
+        }
+    }
+
+    document.getElementById('adminPassInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') checkAdminPassword();
+    });
+
+    function showAdminPanel() {
+        document.getElementById('loginBox').classList.add('hidden');
+        document.getElementById('adminPanel').classList.remove('hidden');
+        refreshAll();
+    }
+
+    function logoutAdmin() {
+        sessionStorage.removeItem('isAdminLoggedIn');
+        document.getElementById('adminPassInput').value = '';
+        document.getElementById('loginBox').classList.remove('hidden');
+        document.getElementById('adminPanel').classList.add('hidden');
+    }
+
+    function refreshAll() {
+        loadStats();
+        loadBookings();
+        loadAdminReviews();
+    }
+
+    async function loadStats() {
+        try {
+            const res = await fetch(`${API_BASE}/api/stats`);
+            if (res.ok) {
+                const s = await res.json();
+                document.getElementById('statTotalCount').textContent = s.totalCount || 0;
+                document.getElementById('statTotalIncome').textContent = (s.totalIncome || 0).toLocaleString('ru-RU');
+                document.getElementById('statNewCount').textContent = s.newCount || 0;
+                document.getElementById('statCompletedCount').textContent = s.completedCount || 0;
+            }
+        } catch (e) {
+            console.error('Ошибка загрузки статистики', e);
+        }
+    }
+
+    async function loadBookings() {
+        const tableBody = document.getElementById('bookingsTable');
+        tableBody.innerHTML = '<tr><td colspan="7">Загрузка...</td></tr>';
+
+        try {
+            const response = await fetch(`${API_BASE}/api/booking`);
+            if (response.ok) {
+                allBookingsList = await response.json();
+                filterBookings();
+            } else {
+                tableBody.innerHTML = '<tr><td colspan="7" style="color: red;">Ошибка сервера</td></tr>';
+            }
+        } catch (error) {
+            tableBody.innerHTML = '<tr><td colspan="7" style="color: red;">Нет связи с сервером (Java запущена?)</td></tr>';
+        }
+    }
+
+    function filterBookings() {
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+        const status = document.getElementById('statusFilter').value;
+        const tableBody = document.getElementById('bookingsTable');
+
+        const filtered = allBookingsList.filter(b => {
+            const matchesQuery = !query || 
+                (b.clientName && b.clientName.toLowerCase().includes(query)) ||
+                (b.clientPhone && b.clientPhone.includes(query));
+            const matchesStatus = status === 'all' || b.status === status;
+            return matchesQuery && matchesStatus;
+        });
+
+        tableBody.innerHTML = '';
+        if (filtered.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="7">Заявок не найдено.</td></tr>';
+            return;
+        }
+
+        filtered.forEach(b => {
+            const tr = document.createElement('tr');
+            const promoBadge = b.promoCode ? `<div style="font-size:11px; color:#e6cc98; margin-top:2px;">Промо: ${escapeHtml(b.promoCode)}</div>` : '';
+
+            tr.innerHTML = `
+                <td>#${b.id}</td>
+                <td>
+                    <strong>${escapeHtml(b.clientName || 'Гость')}</strong><br>
+                    <span style="color:#aaa; font-size:13px;">${escapeHtml(b.clientPhone || '')}</span>
+                </td>
+                
+                <!-- Дата, время и сумма (редактируемые) -->
+                <td>
+                    <div class="datetime-box">
+                        <div class="inline-inputs">
+                            <input type="date" id="date_${b.id}" class="input-sm" value="${b.bookingDate || ''}" style="flex:1;">
+                            <input type="time" id="time_${b.id}" class="input-sm" value="${b.bookingTime || ''}" style="width:75px;">
+                        </div>
+                        <div class="inline-inputs" style="align-items: center;">
+                            <input type="number" id="price_${b.id}" class="input-sm" value="${b.totalPrice || 0}" style="width: 100px; color:#e6cc98; font-weight:bold;">
+                            <span style="color:#aaa; font-size:13px;">₽</span>
+                            <button class="btn-sm" onclick="saveDateTimeAndPrice(${b.id})" title="Сохранить дату, время и сумму">💾 Сохранить</button>
+                        </div>
+                        <span id="saved_dt_${b.id}" class="save-indicator">✓ Сохранено</span>
+                        ${promoBadge}
+                    </div>
+                </td>
+
+                <!-- Детали заказа (редактируемые) -->
+                <td>
+                    <div class="details-box">
+                        <textarea id="details_${b.id}" class="details-textarea" placeholder="Детали заказа, статус реализации, заметки...">${escapeHtml(b.details || '')}</textarea>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <button class="btn-sm" onclick="saveDetails(${b.id})">💾 Сохранить детали</button>
+                            <span id="saved_det_${b.id}" class="save-indicator">✓ Детали сохранены</span>
+                        </div>
+                    </div>
+                </td>
+
+                <!-- Статус заказа -->
+                <td>
+                    <select class="status-select" onchange="changeStatus(${b.id}, this.value)">
+                        <option value="Новая" ${b.status === 'Новая' ? 'selected' : ''}>Новая</option>
+                        <option value="В обработке" ${b.status === 'В обработке' ? 'selected' : ''}>В обработке</option>
+                        <option value="Съемка проведена" ${b.status === 'Съемка проведена' ? 'selected' : ''}>Съемка проведена</option>
+                        <option value="Готово" ${b.status === 'Готово' ? 'selected' : ''}>Готово</option>
+                        <option value="Отменена" ${b.status === 'Отменена' ? 'selected' : ''}>Отменена</option>
+                    </select>
+                </td>
+
+                <!-- Ссылка на диск -->
+                <td>
+                    <input type="text" class="url-input" 
+                           placeholder="Ссылка на диск..." 
+                           value="${escapeHtml(b.downloadUrl || '')}" 
+                           onchange="changeDownloadUrl(${b.id}, this.value)">
+                </td>
+
+                <!-- Удаление -->
+                <td>
+                    <button class="btn-delete" onclick="deleteBooking(${b.id})">Удалить</button>
+                </td>
+            `;
+            tableBody.appendChild(tr);
+        });
+    }
+
+    async function saveDetails(id) {
+        const text = document.getElementById(`details_${id}`).value;
+        const indicator = document.getElementById(`saved_det_${id}`);
+
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}/details`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(text)
+            });
+
+            if (res.ok) {
+                const item = allBookingsList.find(b => b.id === id);
+                if (item) item.details = text;
+
+                if (indicator) {
+                    indicator.style.display = 'inline';
+                    setTimeout(() => indicator.style.display = 'none', 2000);
+                }
+            } else {
+                alert('Не удалось сохранить детали');
+            }
+        } catch (e) {
+            alert('Ошибка сети при сохранении деталей');
+        }
+    }
+
+    async function saveDateTimeAndPrice(id) {
+        const dateVal = document.getElementById(`date_${id}`).value;
+        const timeVal = document.getElementById(`time_${id}`).value;
+        const priceVal = parseInt(document.getElementById(`price_${id}`).value, 10) || 0;
+        const indicator = document.getElementById(`saved_dt_${id}`);
+
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}/edit`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    bookingDate: dateVal,
+                    bookingTime: timeVal,
+                    totalPrice: priceVal
+                })
+            });
+
+            if (res.ok) {
+                const item = allBookingsList.find(b => b.id === id);
+                if (item) {
+                    item.bookingDate = dateVal;
+                    item.bookingTime = timeVal;
+                    item.totalPrice = priceVal;
+                }
+                loadStats();
+                if (indicator) {
+                    indicator.style.display = 'inline';
+                    setTimeout(() => indicator.style.display = 'none', 2000);
+                }
+            } else {
+                alert('Не удалось сохранить данные');
+            }
+        } catch (e) {
+            alert('Ошибка сети при сохранении');
+        }
+    }
+
+    async function changeStatus(id, newStatus) {
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newStatus)
+            });
+            if (res.ok) {
+                loadStats();
+                const item = allBookingsList.find(b => b.id === id);
+                if (item) item.status = newStatus;
+            } else {
+                alert('Не удалось обновить статус');
+            }
+        } catch (e) {
+            alert('Ошибка сети при смене статуса');
+        }
+    }
+
+    async function changeDownloadUrl(id, url) {
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}/download-url`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(url)
+            });
+            if (res.ok) {
+                const item = allBookingsList.find(b => b.id === id);
+                if (item) item.downloadUrl = url;
+            } else {
+                alert('Не удалось сохранить ссылку');
+            }
+        } catch (e) {
+            alert('Ошибка сети при сохранении ссылки');
+        }
+    }
+
+    async function deleteBooking(id) {
+        if (!confirm(`Удалить заявку #${id}?`)) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                refreshAll();
+            } else {
+                alert('Ошибка при удалении');
+            }
+        } catch (e) {
+            alert('Ошибка сети при удалении');
+        }
+    }
+
+    // === Отзывы в админке ===
+    async function loadAdminReviews() {
+        const tableBody = document.getElementById('reviewsTable');
+        tableBody.innerHTML = '<tr><td colspan="7">Загрузка отзывов...</td></tr>';
+        try {
+            // Загружаем абсолютно все отзывы (включая ожидающие подтверждения)
+            const res = await fetch(`${API_BASE}/api/reviews/all`);
+            if (res.ok) {
+                const reviews = await res.json();
+                tableBody.innerHTML = '';
+                if (reviews.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="7">Отзывов пока нет.</td></tr>';
+                    return;
+                }
+                reviews.forEach(r => {
+                    const stars = '⭐'.repeat(r.rating || 5);
+                    const isApproved = r.approved;
+                    const statusBadge = isApproved 
+                        ? '<span class="badge-approved">✓ Одобрен</span>' 
+                        : '<span class="badge-pending">⏳ Ожидает модерации</span>';
+
+                    let actionsHtml = '';
+                    if (!isApproved) {
+                        actionsHtml = `
+                            <button class="btn-sm btn-approve" onclick="approveReview(${r.id})">✅ Одобрить</button>
+                            <button class="btn-delete" onclick="deleteReview(${r.id})">❌ Отклонить</button>
+                        `;
+                    } else {
+                        actionsHtml = `
+                            <button class="btn-delete" onclick="deleteReview(${r.id})">Удалить</button>
+                        `;
+                    }
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>#${r.id}</td>
+                        <td><strong>${escapeHtml(r.authorName)}</strong></td>
+                        <td>${stars}</td>
+                        <td style="max-width: 350px;">${escapeHtml(r.comment)}</td>
+                        <td>${escapeHtml(r.createdAt || '')}</td>
+                        <td>${statusBadge}</td>
+                        <td>${actionsHtml}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            }
+        } catch (e) {
+            tableBody.innerHTML = '<tr><td colspan="7" style="color:red;">Ошибка загрузки отзывов</td></tr>';
+        }
+    }
+
+    async function approveReview(id) {
+        try {
+            const res = await fetch(`${API_BASE}/api/reviews/${id}/approve`, { method: 'PATCH' });
+            if (res.ok) {
+                loadAdminReviews();
+            } else {
+                alert('Не удалось одобрить отзыв');
+            }
+        } catch (e) {
+            alert('Ошибка сети при одобрении');
+        }
+    }
+
+    async function deleteReview(id) {
+        if (!confirm(`Удалить / отклонить отзыв #${id}?`)) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/reviews/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                loadAdminReviews();
+            } else {
+                alert('Ошибка при удалении отзыва');
+            }
+        } catch (e) {
+            alert('Ошибка сети при удалении отзыва');
+        }
+    }
+
+    function escapeHtml(str) {
+        return (str || '').toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+</script>
+</body>
+</html>

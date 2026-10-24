@@ -1,0 +1,421 @@
+/* schedule.css - Стили страницы управления окнами записи */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, Arial, sans-serif;
+}
+
+body {
+    background-color: #0c0c0c;
+    color: #eee;
+    padding: 25px;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+/* Вход */
+#loginBox {
+    max-width: 380px;
+    margin: 100px auto;
+    background: #181818;
+    padding: 35px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    text-align: center;
+}
+
+#loginBox h2 {
+    color: #e6cc98;
+    margin-bottom: 20px;
+}
+
+#loginBox input {
+    width: 100%;
+    padding: 12px;
+    background: #252525;
+    border: 1px solid #444;
+    color: #fff;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
+#loginBox button {
+    width: 100%;
+    padding: 12px;
+    background: #e6cc98;
+    border: none;
+    color: #111;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 15px;
+}
+
+#loginBox button:hover {
+    background: #d4ba88;
+}
+
+#loginError {
+    color: #ea868f;
+    margin-top: 10px;
+    font-size: 14px;
+    display: none;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #282828;
+}
+
+.header h1 {
+    color: #e6cc98;
+    font-size: 26px;
+}
+
+.header a {
+    color: #aaa;
+    text-decoration: none;
+    font-size: 14px;
+    border: 1px solid #444;
+    padding: 8px 14px;
+    border-radius: 4px;
+}
+
+.header a:hover {
+    color: #fff;
+    border-color: #e6cc98;
+}
+
+.schedule-card {
+    background: #181818;
+    border: 1px solid #282828;
+    border-radius: 8px;
+    padding: 25px;
+    margin-bottom: 30px;
+}
+
+.schedule-card h2 {
+    font-size: 18px;
+    color: #e6cc98;
+    margin-bottom: 15px;
+}
+
+.form-row {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+input[type="date"], input[type="time"] {
+    background: #252525;
+    border: 1px solid #444;
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 15px;
+}
+
+.btn-gold {
+    background: #e6cc98;
+    color: #111;
+    border: none;
+    padding: 10px 18px;
+    font-weight: bold;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-gold:hover {
+    background: #d4ba88;
+}
+
+.btn-standard-day {
+    background: #333;
+    color: #fff;
+}
+
+.btn-standard-day:hover {
+    background: #444;
+}
+
+.custom-time-row {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Быстрые кнопки слотов */
+.quick-presets {
+    margin-top: 15px;
+}
+
+.quick-presets p {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.preset-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.preset-btn {
+    background: #222;
+    border: 1px solid #444;
+    color: #ddd;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: 0.2s;
+}
+
+.preset-btn:hover {
+    border-color: #e6cc98;
+    color: #e6cc98;
+    background: #282828;
+}
+
+/* Список слотов */
+.slots-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.slot-pill {
+    background: #202020;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.slot-pill.booked {
+    border-color: #8b1c1c;
+    background: #1e1414;
+}
+
+.slot-time {
+    font-size: 18px;
+    font-weight: bold;
+    color: #e6cc98;
+}
+
+.slot-pill.booked .slot-time {
+    color: #ea868f;
+    text-decoration: line-through;
+}
+
+.slot-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.badge-free {
+    background: #13281e;
+    color: #75b798;
+}
+
+.badge-busy {
+    background: #381616;
+    color: #ea868f;
+}
+
+.btn-del-slot {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+.btn-del-slot:hover {
+    color: #ea868f;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.current-date-title {
+    color: #fff;
+}
+
+/* Сообщения в контейнере окон */
+.slots-msg-loading {
+    color: #888;
+}
+
+.slots-msg-empty {
+    color: #888;
+    grid-column: 1 / -1;
+}
+
+.slots-msg-error {
+    color: #ea868f;
+}
+
+/* ==========================================
+   Адаптивность для расписания (schedule.css)
+   ========================================== */
+@media (max-width: 768px) {
+    body {
+        padding: 12px;
+    }
+
+    #loginBox {
+        margin: 40px auto;
+        padding: 25px 18px;
+        max-width: 100%;
+    }
+
+    .header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .header h1 {
+        font-size: 20px;
+        text-align: center;
+    }
+
+    .header a {
+        text-align: center;
+        width: 100%;
+        padding: 10px;
+    }
+
+    .schedule-card {
+        padding: 18px 14px;
+        margin-bottom: 20px;
+    }
+
+    .schedule-card h2 {
+        font-size: 16px;
+    }
+
+    .form-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .form-row input[type="date"] {
+        width: 100%;
+        font-size: 16px;
+    }
+
+    .btn-gold {
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+    }
+
+    .btn-standard-day {
+        margin-left: 0;
+        text-align: center;
+    }
+
+    .preset-buttons {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+    }
+
+    .preset-btn {
+        padding: 8px 4px;
+        font-size: 12px;
+        text-align: center;
+    }
+
+    .custom-time-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        margin-top: 15px;
+    }
+
+    .custom-time-row input[type="time"] {
+        width: 100%;
+        font-size: 16px;
+    }
+
+    .slots-list {
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 10px;
+    }
+
+    .slot-pill {
+        padding: 10px 12px;
+    }
+
+    .slot-time {
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    .preset-buttons {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ==========================================
+   Плавный переход между страницами
+   ========================================== */
+body {
+    animation: pageFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.page-leaving {
+    opacity: 0 !important;
+    transform: translateY(-8px) !important;
+    transition: opacity 0.2s ease-in, transform 0.2s ease-in !important;
+}
+
+@keyframes pageFadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body {
+        animation: none !important;
+    }
+    body.page-leaving {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none !important;
+    }
+}

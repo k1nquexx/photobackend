@@ -236,19 +236,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (mobileMenuBtn && navbarNav) {
         mobileMenuBtn.addEventListener('click', () => {
-            if (navbarNav.style.display === 'flex') {
-                navbarNav.style.display = 'none';
-            } else {
-                navbarNav.style.display = 'flex';
-                navbarNav.style.flexDirection = 'column';
-                navbarNav.style.position = 'absolute';
-                navbarNav.style.top = '70px';
-                navbarNav.style.left = '0';
-                navbarNav.style.width = '100%';
-                navbarNav.style.background = '#050505';
-                navbarNav.style.padding = '20px';
-                navbarNav.style.borderBottom = '1px solid #222222';
-            }
+            navbarNav.classList.toggle('open');
+        });
+
+        navbarNav.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                navbarNav.classList.remove('open');
+            });
         });
     }
 

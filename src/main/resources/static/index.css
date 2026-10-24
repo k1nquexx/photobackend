@@ -1,0 +1,232 @@
+/* index.css - Стили для главной страницы (index.html) */
+
+/* Заголовки секций */
+.faq-title {
+    margin-bottom: 50px;
+}
+
+.reviews-title {
+    margin-bottom: 40px;
+}
+
+.reviews-loading {
+    text-align: center;
+    color: #888;
+}
+
+.review-form-title {
+    margin-bottom: 20px;
+    color: #e6cc98;
+}
+
+/* Промокод */
+.promo-label {
+    color: #888;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+/* Сообщения формы отзывов */
+.review-alert {
+    display: none;
+    margin-top: 15px;
+}
+
+/* Выбранный расчет из калькулятора */
+.calc-selected-notice {
+    display: none;
+    background: #1f1f1f;
+    border-left: 3px solid #e6cc98;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: #e6cc98;
+}
+
+/* Сводка бронирования */
+.booking-summary-box {
+    background: #181818;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.booking-summary-label {
+    color: #888;
+}
+
+.booking-summary-date {
+    color: #fff;
+}
+
+.booking-summary-time {
+    color: #e6cc98;
+}
+
+.booking-summary-price {
+    color: #e6cc98;
+    font-size: 16px;
+}
+
+/* Поля даты и времени записи */
+.booking-date-row {
+    margin-top: 15px;
+}
+
+.booking-field-full {
+    width: 100%;
+}
+
+.booking-field-label {
+    display: block;
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 5px;
+}
+
+.booking-date-input {
+    width: 100%;
+    color: #fff;
+    background: #181818;
+    padding: 12px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    font-size: 15px;
+}
+
+/* Блок выбора свободных окон */
+.slots-selector-block {
+    margin-top: 20px;
+    margin-bottom: 25px;
+}
+
+.slots-selector-label {
+    display: block;
+    font-size: 12px;
+    color: #e6cc98;
+    font-weight: bold;
+    margin-bottom: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.slots-buttons-wrapper {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.slots-placeholder-msg {
+    color: #888;
+    font-size: 14px;
+}
+
+.slots-none-msg {
+    color: #ea868f;
+    font-size: 14px;
+    margin-top: 6px;
+    display: none;
+}
+
+/* Блок проверки статуса заказа */
+.status-token-input {
+    margin-bottom: 10px;
+    width: 100%;
+    background: #181818;
+    border: 1px solid #444;
+    color: #e6cc98;
+    padding: 12px;
+    border-radius: 4px;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.alt-status-toggle {
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #888;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.alt-status-container {
+    display: none;
+    margin-bottom: 12px;
+}
+
+.status-order-id-input {
+    margin-bottom: 10px;
+    width: 100%;
+    background: #181818;
+    border: 1px solid #333;
+    color: #fff;
+    padding: 12px;
+    border-radius: 4px;
+    font-size: 15px;
+}
+
+/* ==========================================
+   Адаптивность компонентов главной страницы (index.css)
+   ========================================== */
+@media (max-width: 768px) {
+    .faq-title {
+        margin-bottom: 25px;
+    }
+
+    .reviews-title {
+        margin-bottom: 25px;
+    }
+
+    .booking-summary-box {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 14px;
+    }
+
+    .booking-date-row {
+        margin-top: 10px;
+    }
+
+    .slots-selector-block {
+        margin-top: 15px;
+        margin-bottom: 20px;
+    }
+
+    .slots-buttons-wrapper {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .slot-select-btn {
+        width: 100%;
+        padding: 12px 8px;
+        font-size: 14px;
+        text-align: center;
+    }
+
+    .status-token-input {
+        font-size: 16px;
+    }
+
+    .status-order-id-input {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .slots-buttons-wrapper {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

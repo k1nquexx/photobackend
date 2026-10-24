@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>K1rnaku - Фотограф Томск</title>
     <link rel="stylesheet" href="main.css">
+    <link rel="stylesheet" href="index.css">
 </head>
 <body>
 
@@ -129,7 +130,7 @@
 
                 <!-- Блок промокода -->
                 <div class="promo-box">
-                    <label style="color:#888; font-size:13px; text-transform:uppercase;">Промокод на скидку</label>
+                    <label class="promo-label">Промокод на скидку</label>
                     <div class="promo-input-row">
                         <input type="text" id="promoInput" placeholder="Например: START10">
                         <button type="button" class="btn-primary" id="applyPromoBtn">Применить</button>
@@ -151,7 +152,7 @@
 <!-- FAQ Часто задаваемые вопросы -->
 <section id="faq" class="section faq-section">
     <div class="container">
-        <h2 class="text-center" style="margin-bottom: 50px;">Частые вопросы</h2>
+        <h2 class="text-center faq-title">Частые вопросы</h2>
         <div class="faq-grid">
             <div class="faq-item">
                 <div class="faq-question">
@@ -199,16 +200,16 @@
 <!-- Отзывы клиентов -->
 <section id="reviews" class="section reviews-section">
     <div class="container">
-        <h2 class="text-center" style="margin-bottom: 40px;">Отзывы клиентов</h2>
+        <h2 class="text-center reviews-title">Отзывы клиентов</h2>
         
         <!-- Сетка отзывов (загружаются из БД) -->
         <div class="reviews-grid" id="reviewsContainer">
-            <p style="text-align: center; color: #888;">Загрузка отзывов...</p>
+            <p class="reviews-loading">Загрузка отзывов...</p>
         </div>
 
         <!-- Форма добавления отзыва -->
         <div class="review-form-wrapper">
-            <h3 style="margin-bottom: 20px; color: #e6cc98;">Оставить отзыв</h3>
+            <h3 class="review-form-title">Оставить отзыв</h3>
             <form id="reviewForm">
                 <div class="form-row">
                     <input type="text" id="reviewAuthor" placeholder="Ваше имя" required>
@@ -225,7 +226,7 @@
                 </div>
                 <textarea id="reviewComment" placeholder="Поделитесь вашими впечатлениями от съемки..." rows="3" required></textarea>
                 <button type="submit" class="btn-primary w-100">Отправить отзыв</button>
-                <div id="reviewAlert" class="status-result" style="display:none; margin-top:15px;"></div>
+                <div id="reviewAlert" class="status-result review-alert"></div>
             </form>
         </div>
     </div>
@@ -237,15 +238,15 @@
         <div class="contact-grid">
             <div class="form-box">
                 <h2>Связаться со мной</h2>
-                <div id="selectedCalcNotice" style="display: none; background: #1f1f1f; border-left: 3px solid #e6cc98; padding: 10px 15px; margin-bottom: 20px; font-size: 14px; color: #e6cc98;"></div>
+                <div id="selectedCalcNotice" class="calc-selected-notice"></div>
                 
                 <!-- Сводка: Дата, Время и Сумма -->
-                <div id="bookingSummary" style="background: #181818; border: 1px solid #333; border-radius: 4px; padding: 12px 15px; margin-bottom: 20px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div id="bookingSummary" class="booking-summary-box">
                     <div>
-                        <span style="color: #888;">Съемка:</span> <strong id="summaryDate" style="color: #fff;">Дата не выбрана</strong> <span id="summaryTime" style="color: #e6cc98;"></span>
+                        <span class="booking-summary-label">Съемка:</span> <strong id="summaryDate" class="booking-summary-date">Дата не выбрана</strong> <span id="summaryTime" class="booking-summary-time"></span>
                     </div>
                     <div>
-                        <span style="color: #888;">Сумма:</span> <strong id="summaryPrice" style="color: #e6cc98; font-size: 16px;">2 000</strong> ₽
+                        <span class="booking-summary-label">Сумма:</span> <strong id="summaryPrice" class="booking-summary-price">2 000</strong> ₽
                     </div>
                 </div>
 
@@ -255,24 +256,24 @@
                         <input type="tel" id="clientPhone" placeholder="+7 (999) 000-00-00" required>
                     </div>
                     
-                    <div class="form-row" style="margin-top: 15px;">
-                        <div style="width: 100%;">
-                            <label style="display:block; font-size:12px; color:#888; margin-bottom:5px;">ЖЕЛАЕМАЯ ДАТА СЪЕМКИ</label>
-                            <input type="date" id="bookingDate" required style="width: 100%; color:#fff; background:#181818; padding:12px; border:1px solid #333; border-radius:4px; font-size: 15px;">
+                    <div class="form-row booking-date-row">
+                        <div class="booking-field-full">
+                            <label class="booking-field-label">ЖЕЛАЕМАЯ ДАТА СЪЕМКИ</label>
+                            <input type="date" id="bookingDate" required class="booking-date-input">
                         </div>
                     </div>
 
                     <!-- Интерактивный выбор свободных окон -->
-                    <div style="margin-top: 20px; margin-bottom: 25px;">
-                        <label style="display:block; font-size:12px; color:#e6cc98; font-weight:bold; margin-bottom:10px; letter-spacing:1px; text-transform:uppercase;">
+                    <div class="slots-selector-block">
+                        <label class="slots-selector-label">
                             ВЫБЕРИТЕ СВОБОДНОЕ ОКНО ДЛЯ ЗАПИСИ:
                         </label>
-                        <div id="slotsButtonsContainer" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
-                            <span style="color: #888; font-size: 14px;">Выберите дату в календаре выше...</span>
+                        <div id="slotsButtonsContainer" class="slots-buttons-wrapper">
+                            <span class="slots-placeholder-msg">Выберите дату в календаре выше...</span>
                         </div>
                         <!-- Скрытое поле для передачи времени в форму -->
                         <input type="hidden" id="bookingTime" required>
-                        <div id="noSlotsMsg" style="color: #ea868f; font-size: 14px; margin-top: 6px; display: none;">
+                        <div id="noSlotsMsg" class="slots-none-msg">
                             ✕ На эту дату нет свободных окон. Пожалуйста, выберите другой день!
                         </div>
                     </div>
@@ -288,14 +289,14 @@
                 <h2>Ждете фотографии?</h2>
                 <p>Введите ваш уникальный <strong>код отслеживания</strong> (например: TRK-A7X9K2P4), полученный при создании заявки:</p>
                 <form id="statusForm">
-                    <input type="text" id="statusToken" placeholder="Код отслеживания (TRK-...)" style="margin-bottom: 10px; width: 100%; background: #181818; border: 1px solid #444; color: #e6cc98; padding: 12px; border-radius: 4px; font-size: 15px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase;">
+                    <input type="text" id="statusToken" placeholder="Код отслеживания (TRK-...)" class="status-token-input">
                     
-                    <div id="altStatusToggle" style="margin-bottom: 12px; font-size: 13px; color: #888; cursor: pointer; text-decoration: underline;">
+                    <div id="altStatusToggle" class="alt-status-toggle">
                         Потеряли код? Проверить по номеру заявки и телефону
                     </div>
 
-                    <div id="altStatusFields" style="display: none; margin-bottom: 12px;">
-                        <input type="number" id="statusOrderId" placeholder="Номер заявки (например, 1)" style="margin-bottom: 10px; width: 100%; background: #181818; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 4px; font-size: 15px;">
+                    <div id="altStatusFields" class="alt-status-container">
+                        <input type="number" id="statusOrderId" placeholder="Номер заявки (например, 1)" class="status-order-id-input">
                         <input type="tel" id="statusPhone" placeholder="+7 (999) 000-00-00">
                     </div>
 

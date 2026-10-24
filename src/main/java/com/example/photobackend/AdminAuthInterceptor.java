@@ -25,7 +25,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
                     || handlerMethod.getBeanType().isAnnotationPresent(AdminOnly.class);
 
             if (requiresAdmin) {
-                String token = request.getHeader("X-Admin-Token");
+                String token = request.getHeader(SecurityConstants.AUTH_HEADER_NAME);
                 if (!adminAuthService.isValid(token)) {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setCharacterEncoding("UTF-8");

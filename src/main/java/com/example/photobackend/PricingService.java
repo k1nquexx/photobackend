@@ -8,47 +8,46 @@ import java.util.Map;
 @Service
 public class PricingService {
 
-    // Тарифы
-    public static final int RATE_PORTRAIT = 1000; // руб/час
-    public static final int RATE_EVENT = 2000;    // руб/час
-
-    // Дополнительные услуги
-    public static final int ADDON_EXPRESS_PRICE = 1000; // Готовность за 24ч
-    public static final int ADDON_STUDIO_PRICE = 500;   // Помощь с арендой студии
+    public static final int RATE_PORTRAIT = PricingConstants.RATE_PORTRAIT;
+    public static final int RATE_EVENT = PricingConstants.RATE_EVENT;
+    public static final int ADDON_EXPRESS_PRICE = PricingConstants.ADDON_EXPRESS_PRICE;
+    public static final int ADDON_STUDIO_PRICE = PricingConstants.ADDON_STUDIO_PRICE;
 
     // Единый источник правды для прайс-листа (Single Source of Truth)
     public Map<String, Object> getPricingConfig() {
         Map<String, Object> config = new HashMap<>();
-        config.put("portraitRate", RATE_PORTRAIT);
-        config.put("eventRate", RATE_EVENT);
-        config.put("addonExpressPrice", ADDON_EXPRESS_PRICE);
-        config.put("addonStudioPrice", ADDON_STUDIO_PRICE);
+        config.put("portraitRate", PricingConstants.RATE_PORTRAIT);
+        config.put("eventRate", PricingConstants.RATE_EVENT);
+        config.put("addonExpressPrice", PricingConstants.ADDON_EXPRESS_PRICE);
+        config.put("addonStudioPrice", PricingConstants.ADDON_STUDIO_PRICE);
         return config;
     }
 
     public int calculatePrice(Integer shootTypeRate, Integer hours, boolean addonExpress, boolean addonStudio, String promoCode) {
-        int validHours = (hours == null || hours < 1) ? 2 : Math.min(hours, 24);
+        int validHours = (hours == null || hours < PricingConstants.MIN_HOURS) 
+                ? PricingConstants.DEFAULT_HOURS 
+                : Math.min(hours, PricingConstants.MAX_HOURS);
 
-        int rate = RATE_PORTRAIT;
-        if (shootTypeRate != null && shootTypeRate >= RATE_EVENT) {
-            rate = RATE_EVENT;
+        int rate = PricingConstants.RATE_PORTRAIT;
+        if (shootTypeRate != null && shootTypeRate >= PricingConstants.RATE_EVENT) {
+            rate = PricingConstants.RATE_EVENT;
         }
 
         int total = rate * validHours;
 
         if (addonExpress) {
-            total += ADDON_EXPRESS_PRICE;
+            total += PricingConstants.ADDON_EXPRESS_PRICE;
         }
         if (addonStudio) {
-            total += ADDON_STUDIO_PRICE;
+            total += PricingConstants.ADDON_STUDIO_PRICE;
         }
 
         if (promoCode != null) {
             String code = promoCode.trim().toUpperCase();
-            if ("START10".equals(code)) {
-                total = (int) Math.round(total * 0.9);
-            } else if ("FOTO500".equals(code)) {
-                total = Math.max(0, total - 500);
+            if (PricingConstants.PROMO_START10.equals(code)) {
+                total = (int) Math.round(total * PricingConstants.PROMO_START10_DISCOUNT_MULTIPLIER);
+            } else if (PricingConstants.PROMO_FOTO500.equals(code)) {
+                total = Math.max(0, total - PricingConstants.PROMO_FOTO500_DISCOUNT_RUB);
             }
         }
 

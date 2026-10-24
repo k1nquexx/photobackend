@@ -1,5 +1,6 @@
 package com.example.photobackend;
 
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -7,7 +8,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -15,103 +15,88 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class ReviewController {
 
-    @Autowired
-    private ReviewRepository reviewRepository;
+    private final ReviewService reviewService;
+    private final AdminAuthService adminAuthService;
 
     @Autowired
-    private AdminAuthService adminAuthService;
-
-    // Публичный эндпоинт: возвращает только одобренные отзывы для сайта
-    @GetMapping
-    public List<Review> getApprovedReviews() {
-        return reviewRepository.findByApprovedTrue();
+    public ReviewController(ReviewService reviewService, AdminAuthService adminAuthService) {
+        this.reviewService = reviewService;
+        this.adminAuthService = adminAuthService;
     }
 
-    // Для панели администратора: закрытый список отзывов с пагинацией
+    /**
+     * Публичный эндпоинт: возвращает DTO только одобренных отзывов для сайта.
+     */
+    @GetMapping
+    public ResponseEntity<List<ReviewResponseDto>> getApprovedReviews() {
+        return ResponseEntity.ok(reviewService.getApprovedReviews());
+    }
+
+    /**
+     * Для панели администратора: закрытый список отзывов с пагинацией (возвращает Page<ReviewResponseDto>).
+     */
     @AdminOnly
     @GetMapping("/all")
     public ResponseEntity<?> getAllReviewsForAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestHeader(value = "X-Admin-Token", required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
 
         if (!adminAuthService.isValid(token)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен: требуется токен администратора");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Доступ запрещен: требуется токен администратора");
         }
 
-        Page<Review> reviewPage = reviewRepository.findAllByOrderByIdDesc(
+        Page<ReviewResponseDto> reviewPage = reviewService.getAllReviewsForAdmin(
                 PageRequest.of(page, Math.min(size, 100))
         );
         return ResponseEntity.ok(reviewPage);
     }
 
-    // Добавление отзыва клиентом (DTO + валидация длины + защита от MERGE/перезаписи)
+    /**
+     * Добавление отзыва клиентом с автоматической валидацией DTO (@Valid).
+     */
     @PostMapping
-    public ResponseEntity<?> createReview(@RequestBody ReviewCreateRequest req) {
-        if (req == null) {
-            return ResponseEntity.badRequest().body("Данные отзыва не переданы");
+    public ResponseEntity<?> createReview(@Valid @RequestBody ReviewCreateRequest req) {
+        try {
+            ReviewResponseDto created = reviewService.createReview(req);
+            return ResponseEntity.ok(created);
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-
-        String name = req.getAuthorName() != null ? req.getAuthorName().trim() : "";
-        String comment = req.getComment() != null ? req.getComment().trim() : "";
-
-        if (name.isEmpty() || name.length() > 100) {
-            return ResponseEntity.badRequest().body("Имя автора должно содержать от 1 до 100 символов");
-        }
-        if (comment.isEmpty() || comment.length() > 2000) {
-            return ResponseEntity.badRequest().body("Текст отзыва должен содержать от 1 до 2000 символов");
-        }
-
-        int rating = req.getRating() != null ? req.getRating() : 5;
-        if (rating < 1) rating = 1;
-        if (rating > 5) rating = 5;
-
-        // Создаем новую запись со строгим id = null (защита от перезаписи существующих отзывов)
-        Review review = new Review();
-        review.setId(null);
-        review.setAuthorName(name);
-        review.setComment(comment);
-        review.setRating(rating);
-        review.setApproved(false);
-        review.setCreatedAt(LocalDate.now().toString());
-
-        reviewRepository.save(review);
-        return ResponseEntity.ok(review);
     }
 
-    // Одобрение отзыва администратором
+    /**
+     * Одобрение отзыва администратором.
+     */
     @AdminOnly
     @PatchMapping("/{id}/approve")
     public ResponseEntity<?> approveReview(
             @PathVariable Long id,
-            @RequestHeader(value = "X-Admin-Token", required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
 
         if (!adminAuthService.isValid(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
 
-        return reviewRepository.findById(id).map(r -> {
-            r.setApproved(true);
-            reviewRepository.save(r);
-            return ResponseEntity.ok("Отзыв одобрен");
-        }).orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body("Отзыв не найден"));
+        reviewService.approveReview(id);
+        return ResponseEntity.ok("Отзыв одобрен");
     }
 
-    // Отклонение / удаление отзыва
+    /**
+     * Отклонение / удаление отзыва администратором.
+     */
     @AdminOnly
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteReview(
             @PathVariable Long id,
-            @RequestHeader(value = "X-Admin-Token", required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
 
         if (!adminAuthService.isValid(token)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
 
-        if (reviewRepository.existsById(id)) {
-            reviewRepository.deleteById(id);
-            return ResponseEntity.ok("Отзыв удален");
-        }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Отзыв не найден");
+        reviewService.deleteReview(id);
+        return ResponseEntity.ok("Отзыв удален");
     }
 }

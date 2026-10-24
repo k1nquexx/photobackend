@@ -3,7 +3,12 @@ package com.example.photobackend;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "bookings")
+@Table(name = "bookings", indexes = {
+    @Index(name = "idx_booking_tracking_token", columnList = "trackingToken"),
+    @Index(name = "idx_booking_status", columnList = "status"),
+    @Index(name = "idx_booking_phone", columnList = "clientPhone"),
+    @Index(name = "idx_booking_date_time", columnList = "bookingDate, bookingTime")
+})
 public class Booking {
 
     @Id

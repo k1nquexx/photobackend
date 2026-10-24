@@ -244,4 +244,48 @@ class PhotobackendApplicationTests {
         TimeSlot updatedSlot = timeSlotRepository.findById(slot.getId()).orElseThrow();
         assertFalse(updatedSlot.isBooked(), "Слот должен быть освобожден (isBooked = false) после удаления заказа");
     }
+
+    @Autowired
+    private TimeSlotService timeSlotService;
+
+    @Autowired
+    private ReviewService reviewService;
+
+    @Autowired
+    private BookingService bookingService;
+
+    @Test
+    void testTimeSlotServiceAndDtoReturns() {
+        String testDate = "2026-11-20";
+        timeSlotRepository.save(new TimeSlot(testDate, "10:00"));
+        timeSlotRepository.save(new TimeSlot(testDate, "12:00"));
+
+        var availableSlots = timeSlotService.getAvailableSlots(testDate);
+        assertNotNull(availableSlots);
+        assertFalse(availableSlots.isEmpty());
+        // Проверяем, что возвращаются DTO, а не JPA entities
+        assertTrue(availableSlots.get(0) instanceof TimeSlotResponseDto);
+        assertEquals(testDate, availableSlots.get(0).getSlotDate());
+
+        // Проверка выборки по диапазону дат
+        var rangeSlots = timeSlotService.getSlotsByDateRange("2026-11-01", "2026-11-30", false);
+        assertNotNull(rangeSlots);
+        assertTrue(rangeSlots.stream().anyMatch(s -> s.getSlotDate().equals(testDate)));
+    }
+
+    @Test
+    void testReviewServiceReturnsDtos() {
+        var reviews = reviewService.getApprovedReviews();
+        assertNotNull(reviews);
+        if (!reviews.isEmpty()) {
+            assertTrue(reviews.get(0) instanceof ReviewResponseDto);
+        }
+    }
+
+    @Test
+    void testRateLimiterEvictionDoesNotCrash() {
+        rateLimiterService.tryAcquire("test-evict-key", 5, 1);
+        rateLimiterService.evictExpiredEntries();
+        adminAuthService.evictExpiredTokens();
+    }
 }

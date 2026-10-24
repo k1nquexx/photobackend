@@ -4,11 +4,13 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -29,7 +31,7 @@ public class AdminAuthService {
     // Срок действия сессии администратора: 2 часа
     private static final long TOKEN_TTL_SECONDS = 2 * 3600;
 
-    // Секретный ключ для подписи stateless HMAC-SHA256 токенов (генерируется или выводится из пароля)
+    // Секретный ключ для подписи stateless HMAC-SHA256 токенов
     private byte[] hmacKey;
 
     // Черный список отозванных токенов при явном выходе (logout)
@@ -38,7 +40,6 @@ public class AdminAuthService {
     @PostConstruct
     public void init() {
         if (adminPassword == null || adminPassword.isBlank() || "admin2026".equalsIgnoreCase(adminPassword.trim())) {
-            // Если пароль не задан или остался старый дефолт, генерируем криптостойкий пароль
             String generated = "admin-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
             this.adminPassword = generated;
 
@@ -51,17 +52,16 @@ public class AdminAuthService {
                 "Используйте его для входа в /admin.html.\n" +
                 "Для установки постоянного пароля задайте переменную окружения: ADMIN_PASSWORD=...\n" +
                 "==================================================================================";
-            System.err.println(banner);
             log.warn(banner);
         } else {
             log.info("Пароль администратора успешно инициализирован из защищенной конфигурации.");
         }
 
-        // Инициализируем HMAC-ключ на основе хеша пароля администратора
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             this.hmacKey = md.digest(("HMAC_SALT_2026:" + adminPassword.trim()).getBytes(StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException e) {
+            log.error("Алгоритм SHA-256 недоступен для инициализации HMAC", e);
             this.hmacKey = adminPassword.trim().getBytes(StandardCharsets.UTF_8);
         }
     }
@@ -71,7 +71,6 @@ public class AdminAuthService {
             return null;
         }
 
-        // Защита от Timing Attack: безопасное побайтовое сравнение хешей SHA-256
         if (verifyPassword(password.trim(), adminPassword.trim())) {
             long now = Instant.now().getEpochSecond();
             long exp = now + TOKEN_TTL_SECONDS;
@@ -108,7 +107,8 @@ public class AdminAuthService {
 
             long exp = Long.parseLong(parts[1]);
             return Instant.now().getEpochSecond() <= exp;
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
+            log.debug("Невалидный payload токена: {}", e.getMessage());
             return false;
         }
     }
@@ -116,10 +116,20 @@ public class AdminAuthService {
     public void logout(String token) {
         if (token != null && !token.isBlank()) {
             revokedTokens.add(token);
-            if (revokedTokens.size() > 5000) {
-                // Очищаем только те отозванные токены, чей срок жизни уже истек по времени
-                revokedTokens.removeIf(this::isTokenExpired);
+            if (revokedTokens.size() > SecurityConstants.MAX_REVOKED_TOKENS) {
+                evictExpiredTokens();
             }
+        }
+    }
+
+    // Регулярная очистка устаревших токенов из памяти каждые 5 минут для защиты Heap от переполнения
+    @Scheduled(fixedRate = 300000)
+    public void evictExpiredTokens() {
+        int before = revokedTokens.size();
+        revokedTokens.removeIf(this::isTokenExpired);
+        int after = revokedTokens.size();
+        if (before != after) {
+            log.debug("Очистка отозванных токенов: удалено {} устаревших записей, осталось {}", before - after, after);
         }
     }
 
@@ -133,7 +143,7 @@ public class AdminAuthService {
             if (parts.length < 2) return true;
             long exp = Long.parseLong(parts[1]);
             return Instant.now().getEpochSecond() > exp;
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return true;
         }
     }
@@ -148,8 +158,9 @@ public class AdminAuthService {
             mac.init(new SecretKeySpec(this.hmacKey, "HmacSHA256"));
             byte[] rawHmac = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(rawHmac);
-        } catch (Exception e) {
-            throw new RuntimeException("Ошибка подписи токена", e);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            log.error("Критическая ошибка создания HMAC подписи токена", e);
+            throw new IllegalStateException("Ошибка подписи токена", e);
         }
     }
 
@@ -160,6 +171,7 @@ public class AdminAuthService {
             byte[] expectedHash = md.digest(expectedPassword.getBytes(StandardCharsets.UTF_8));
             return MessageDigest.isEqual(inputHash, expectedHash);
         } catch (NoSuchAlgorithmException e) {
+            log.error("Алгоритм SHA-256 недоступен для проверки пароля", e);
             return inputPassword.equals(expectedPassword);
         }
     }

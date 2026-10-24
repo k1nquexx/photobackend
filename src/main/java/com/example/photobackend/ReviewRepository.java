@@ -9,6 +9,16 @@ import java.util.List;
 
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Long> {
-    List<Review> findByApprovedTrue();
+
+    // Ограниченная выборка одобренных отзывов для витрины (защита от OutOfMemory)
+    List<Review> findTop50ByApprovedTrueOrderByIdDesc();
+
+    default List<Review> findByApprovedTrue() {
+        return findTop50ByApprovedTrueOrderByIdDesc();
+    }
+
+    Page<Review> findByApprovedTrueOrderByIdDesc(Pageable pageable);
+
+    // Пагинация для администратора
     Page<Review> findAllByOrderByIdDesc(Pageable pageable);
 }

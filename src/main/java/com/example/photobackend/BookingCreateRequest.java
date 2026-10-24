@@ -1,5 +1,8 @@
 package com.example.photobackend;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 /**
  * DTO для создания заявки на съемку.
  * Предотвращает уязвимость Mass Assignment: клиент физически не может передать поля
@@ -7,9 +10,17 @@ package com.example.photobackend;
  */
 public class BookingCreateRequest {
 
+    @NotBlank(message = "Имя клиента обязательно для заполнения")
+    @Size(max = 100, message = "Имя клиента не должно превышать 100 символов")
     private String clientName;
+
+    @NotBlank(message = "Телефон клиента обязателен для заполнения")
+    @Size(max = 30, message = "Номер телефона не должен превышать 30 символов")
     private String clientPhone;
+
+    @Size(max = 2000, message = "Детали заказа не должны превышать 2000 символов")
     private String details;
+
     private String bookingDate;
     private String bookingTime;
     private Integer shootTypeRate;

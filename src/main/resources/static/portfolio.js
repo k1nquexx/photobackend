@@ -71,18 +71,25 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyFilters() {
         let visibleCount = 0;
 
-        subcategoryBlocks.forEach(block => {
-            const blockCat = block.getAttribute('data-category');
-            const blockSub = block.getAttribute('data-subcategory');
-            const blockAnime = block.getAttribute('data-anime') || '';
-            const blockLocation = block.getAttribute('data-location') || '';
-            const blockStyle = block.getAttribute('data-style') || '';
+        const filterCat = (currentCategory || 'all').toLowerCase().trim();
+        const filterSub = (currentSubcategory || 'all').toLowerCase().trim();
+        const filterAnime = (currentAnime || 'all').toLowerCase().trim();
+        const filterLocation = (currentLocation || 'all').toLowerCase().trim();
+        const filterStyle = (currentStyle || 'all').toLowerCase().trim();
 
-            const matchesCat = (currentCategory === 'all' || blockCat === currentCategory);
-            const matchesSub = (currentSubcategory === 'all' || blockSub === currentSubcategory);
-            const matchesAnime = (currentAnime === 'all' || blockAnime === currentAnime);
-            const matchesLocation = (currentLocation === 'all' || blockLocation === currentLocation);
-            const matchesStyle = (currentStyle === 'all' || blockStyle === currentStyle);
+        subcategoryBlocks.forEach(block => {
+            const blockCat = (block.getAttribute('data-category') || '').toLowerCase().trim();
+            const blockSub = (block.getAttribute('data-subcategory') || '').toLowerCase().trim();
+            const blockAnime = (block.getAttribute('data-anime') || '').toLowerCase().trim();
+            const blockLocation = (block.getAttribute('data-location') || '').toLowerCase().trim();
+            const blockStyle = (block.getAttribute('data-style') || '').toLowerCase().trim();
+
+            // Если у карточки несколько категорий, фильтрация использует проверку вхождения (.includes())
+            const matchesCat = (filterCat === 'all' || blockCat.includes(filterCat));
+            const matchesSub = (filterSub === 'all' || blockSub.includes(filterSub));
+            const matchesAnime = (filterAnime === 'all' || blockAnime.includes(filterAnime));
+            const matchesLocation = (filterLocation === 'all' || blockLocation.includes(filterLocation));
+            const matchesStyle = (filterStyle === 'all' || blockStyle.includes(filterStyle));
 
             const isVisible = matchesCat && matchesSub && matchesAnime && matchesLocation && matchesStyle;
             block.classList.toggle('hidden-group', !isVisible);
@@ -173,18 +180,20 @@ document.addEventListener('DOMContentLoaded', () => {
             filterBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            currentCategory = btn.getAttribute('data-filter');
+            // Приводим data-filter к нижнему регистру
+            currentCategory = (btn.getAttribute('data-filter') || 'all').toLowerCase().trim();
             currentSubcategory = 'all';
 
             // Обновляем видимость подкатегорий
             subfilterBtns.forEach(subBtn => {
-                const parentCat = subBtn.getAttribute('data-parent');
+                const parentCat = (subBtn.getAttribute('data-parent') || '').toLowerCase().trim();
                 subBtn.classList.remove('active');
 
-                if (subBtn.getAttribute('data-subfilter') === 'all') {
+                const subVal = (subBtn.getAttribute('data-subfilter') || '').toLowerCase().trim();
+                if (subVal === 'all') {
                     subBtn.classList.add('active');
                     subBtn.classList.remove('hidden-subfilter');
-                } else if (currentCategory === 'all' || parentCat === currentCategory) {
+                } else if (currentCategory === 'all' || parentCat.includes(currentCategory) || currentCategory.includes(parentCat)) {
                     subBtn.classList.remove('hidden-subfilter');
                 } else {
                     subBtn.classList.add('hidden-subfilter');
@@ -201,7 +210,8 @@ document.addEventListener('DOMContentLoaded', () => {
             subfilterBtns.forEach(b => b.classList.remove('active'));
             subBtn.classList.add('active');
 
-            currentSubcategory = subBtn.getAttribute('data-subfilter');
+            // Приводим data-subfilter к нижнему регистру
+            currentSubcategory = (subBtn.getAttribute('data-subfilter') || 'all').toLowerCase().trim();
             applyFilters();
         });
     });
@@ -227,7 +237,9 @@ document.addEventListener('DOMContentLoaded', () => {
         lightboxImg.src = img.src;
         lightboxImg.alt = img.alt || '';
 
-        // Формируем подпись: Название + Теги + Счетчик [ 1 / 3 ]
+        // Текст оверлея или подписи для лайтбокса
+        const overlayText = photoItem.querySelector('.portfolio-overlay')?.textContent?.trim() || '';
+
         const parentBlock = photoItem.closest('.subcategory-block');
         if (parentBlock) {
             const title = parentBlock.querySelector('.subcategory-title')?.textContent || '';
@@ -240,14 +252,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (location) tagsArr.push('📍 ' + location);
             if (style) tagsArr.push('🎨 ' + style);
 
-            let captionText = title;
+            let captionText = overlayText ? overlayText : title;
             if (tagsArr.length > 0) {
                 captionText += ' (' + tagsArr.join(' • ') + ')';
             }
             captionText += ` [ ${currentPhotoIndex + 1} / ${currentSubcategoryPhotos.length} ]`;
             lightboxCaption.textContent = captionText;
         } else {
-            lightboxCaption.textContent = (img.alt || '') + ` [ ${currentPhotoIndex + 1} / ${currentSubcategoryPhotos.length} ]`;
+            lightboxCaption.textContent = (overlayText || img.alt || '') + ` [ ${currentPhotoIndex + 1} / ${currentSubcategoryPhotos.length} ]`;
         }
 
         // Обновляем видимость стрелок: если фотки в подкатегории кончаются, стрелка пропадает!

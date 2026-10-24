@@ -1,0 +1,605 @@
+// admin.js - Логика панели администратора
+
+let allBookingsList = [];
+    let currentBookingPage = 0;
+    let totalBookingPages = 1;
+
+    let currentReviewPage = 0;
+    let totalReviewPages = 1;
+
+    // Проверка сохраненного токена при загрузке
+    if (sessionStorage.getItem('adminToken')) {
+        showAdminPanel();
+    }
+
+    async function checkAdminPassword() {
+        const password = document.getElementById('adminPassInput').value;
+        const errDiv = document.getElementById('loginError');
+
+        try {
+            const res = await fetch(`${API_BASE}/api/admin/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(password)
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                sessionStorage.setItem('adminToken', data.token);
+                errDiv.style.display = 'none';
+                showAdminPanel();
+            } else {
+                errDiv.style.display = 'block';
+            }
+        } catch (e) {
+            errDiv.style.display = 'block';
+        }
+    }
+
+    document.getElementById('adminPassInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') checkAdminPassword();
+    });
+
+    function showAdminPanel() {
+        document.getElementById('loginBox').classList.add('hidden');
+        document.getElementById('adminPanel').classList.remove('hidden');
+        refreshAll();
+    }
+
+    async function logoutAdmin() {
+        try {
+            await fetch(`${API_BASE}/api/admin/logout`, {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
+        } catch (e) {}
+
+        sessionStorage.removeItem('adminToken');
+        document.getElementById('adminPassInput').value = '';
+        document.getElementById('loginBox').classList.remove('hidden');
+        document.getElementById('adminPanel').classList.add('hidden');
+    }
+
+    function handleAuthError() {
+        alert('Сессия администратора истекла или доступ запрещен. Пожалуйста, войдите снова.');
+        logoutAdmin();
+    }
+
+    function refreshAll() {
+        loadStats();
+        loadBookings(currentBookingPage);
+        loadAdminReviews(currentReviewPage);
+    }
+
+    async function loadStats() {
+        try {
+            const res = await fetch(`${API_BASE}/api/stats`, { headers: getAuthHeaders() });
+            if (res.status === 401) {
+                handleAuthError();
+                return;
+            }
+            if (res.ok) {
+                const s = await res.json();
+                document.getElementById('statTotalCount').textContent = s.totalCount || 0;
+                document.getElementById('statTotalIncome').textContent = formatCurrency(s.totalIncome);
+                document.getElementById('statNewCount').textContent = s.newCount || 0;
+                document.getElementById('statCompletedCount').textContent = s.completedCount || 0;
+            }
+        } catch (e) {
+            console.error('Ошибка загрузки статистики', e);
+        }
+    }
+
+    async function loadBookings(page = 0) {
+        currentBookingPage = page;
+        const tableBody = document.getElementById('bookingsTable');
+        tableBody.innerHTML = '<tr><td colspan="7">Загрузка...</td></tr>';
+
+        try {
+            const response = await fetch(`${API_BASE}/api/booking?page=${page}&size=20`, { headers: getAuthHeaders() });
+            if (response.status === 401) {
+                handleAuthError();
+                return;
+            }
+            if (response.ok) {
+                const data = await response.json();
+                if (data.content) {
+                    allBookingsList = data.content;
+                    totalBookingPages = data.totalPages || 1;
+                } else if (Array.isArray(data)) {
+                    allBookingsList = data;
+                    totalBookingPages = 1;
+                } else {
+                    allBookingsList = [];
+                    totalBookingPages = 1;
+                }
+
+                document.getElementById('bookingPageInfo').textContent = `Страница ${currentBookingPage + 1} из ${Math.max(1, totalBookingPages)}`;
+                document.getElementById('prevBookingBtn').disabled = (currentBookingPage <= 0);
+                document.getElementById('nextBookingBtn').disabled = (currentBookingPage >= totalBookingPages - 1);
+
+                filterBookings();
+            } else {
+                tableBody.innerHTML = '<tr><td colspan="7" class="table-error">Ошибка сервера</td></tr>';
+            }
+        } catch (error) {
+            tableBody.innerHTML = '<tr><td colspan="7" class="table-error">Нет связи с сервером (Java запущена?)</td></tr>';
+        }
+    }
+
+    function changeBookingPage(delta) {
+        const target = currentBookingPage + delta;
+        if (target >= 0 && target < totalBookingPages) {
+            loadBookings(target);
+        }
+    }
+
+    // Рендеринг таблицы заявок с защитой от Stored XSS через безопасный DOM
+    function filterBookings() {
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+        const status = document.getElementById('statusFilter').value;
+        const tableBody = document.getElementById('bookingsTable');
+
+        const filtered = allBookingsList.filter(b => {
+            const matchesQuery = !query || 
+                (b.clientName && b.clientName.toLowerCase().includes(query)) ||
+                (b.clientPhone && b.clientPhone.includes(query)) ||
+                (b.trackingToken && b.trackingToken.toLowerCase().includes(query));
+            const matchesStatus = status === 'all' || b.status === status;
+            return matchesQuery && matchesStatus;
+        });
+
+        tableBody.innerHTML = '';
+        if (filtered.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="7">Заявок не найдено.</td></tr>';
+            return;
+        }
+
+        filtered.forEach(b => {
+            const tr = document.createElement('tr');
+
+            // 1. ID
+            const tdId = document.createElement('td');
+            tdId.textContent = `#${b.id}`;
+            tr.appendChild(tdId);
+
+            // 2. Клиент + Tracking Token + Время создания и IP
+            const tdClient = document.createElement('td');
+            const nameEl = document.createElement('strong');
+            nameEl.textContent = b.clientName || 'Гость';
+
+            const phoneEl = document.createElement('span');
+            phoneEl.style.cssText = 'color:#aaa; font-size:13px; display:block;';
+            phoneEl.textContent = b.clientPhone || '';
+
+            const tokenEl = document.createElement('span');
+            tokenEl.style.cssText = 'color:#e6cc98; font-size:11px; display:block; margin-top:2px; font-weight:bold;';
+            tokenEl.textContent = b.trackingToken ? `Код: ${b.trackingToken}` : '';
+
+            const metaEl = document.createElement('span');
+            metaEl.style.cssText = 'color:#777; font-size:11px; display:block; margin-top:3px;';
+            metaEl.textContent = `${b.createdAt || '—'} [IP: ${b.clientIp || '—'}]`;
+
+            tdClient.appendChild(nameEl);
+            tdClient.appendChild(phoneEl);
+            if (b.trackingToken) tdClient.appendChild(tokenEl);
+            tdClient.appendChild(metaEl);
+            tr.appendChild(tdClient);
+
+            // 3. Дата, время и сумма
+            const tdDate = document.createElement('td');
+            const dtBox = document.createElement('div');
+            dtBox.className = 'datetime-box';
+
+            const inline1 = document.createElement('div');
+            inline1.className = 'inline-inputs';
+            const dateInput = document.createElement('input');
+            dateInput.type = 'date';
+            dateInput.id = `date_${b.id}`;
+            dateInput.className = 'input-sm';
+            dateInput.value = b.bookingDate || '';
+            dateInput.style.flex = '1';
+
+            const timeInput = document.createElement('input');
+            timeInput.type = 'time';
+            timeInput.id = `time_${b.id}`;
+            timeInput.className = 'input-sm';
+            timeInput.value = b.bookingTime || '';
+            timeInput.style.width = '75px';
+
+            inline1.appendChild(dateInput);
+            inline1.appendChild(timeInput);
+            dtBox.appendChild(inline1);
+
+            const inline2 = document.createElement('div');
+            inline2.className = 'inline-inputs';
+            inline2.style.alignItems = 'center';
+
+            const priceInput = document.createElement('input');
+            priceInput.type = 'number';
+            priceInput.id = `price_${b.id}`;
+            priceInput.className = 'input-sm';
+            priceInput.value = b.totalPrice || 0;
+            priceInput.style.cssText = 'width: 100px; color:#e6cc98; font-weight:bold;';
+
+            const rubleSpan = document.createElement('span');
+            rubleSpan.style.cssText = 'color:#aaa; font-size:13px;';
+            rubleSpan.textContent = '₽';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'btn-sm';
+            saveBtn.textContent = '💾 Сохранить';
+            saveBtn.onclick = () => saveDateTimeAndPrice(b.id);
+
+            inline2.appendChild(priceInput);
+            inline2.appendChild(rubleSpan);
+            inline2.appendChild(saveBtn);
+            dtBox.appendChild(inline2);
+
+            const saveDtInd = document.createElement('span');
+            saveDtInd.id = `saved_dt_${b.id}`;
+            saveDtInd.className = 'save-indicator';
+            saveDtInd.textContent = '✓ Сохранено';
+            dtBox.appendChild(saveDtInd);
+
+            if (b.promoCode) {
+                const promoBadge = document.createElement('div');
+                promoBadge.style.cssText = 'font-size:11px; color:#e6cc98; margin-top:2px;';
+                promoBadge.textContent = `Промо: ${b.promoCode}`;
+                dtBox.appendChild(promoBadge);
+            }
+            tdDate.appendChild(dtBox);
+            tr.appendChild(tdDate);
+
+            // 4. Детали заказа
+            const tdDetails = document.createElement('td');
+            const detBox = document.createElement('div');
+            detBox.className = 'details-box';
+
+            const detText = document.createElement('textarea');
+            detText.id = `details_${b.id}`;
+            detText.className = 'details-textarea';
+            detText.placeholder = 'Детали заказа, заметки...';
+            detText.value = b.details || '';
+            detBox.appendChild(detText);
+
+            const detRow = document.createElement('div');
+            detRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center;';
+
+            const saveDetBtn = document.createElement('button');
+            saveDetBtn.className = 'btn-sm';
+            saveDetBtn.textContent = '💾 Сохранить детали';
+            saveDetBtn.onclick = () => saveDetails(b.id);
+
+            const saveDetInd = document.createElement('span');
+            saveDetInd.id = `saved_det_${b.id}`;
+            saveDetInd.className = 'save-indicator';
+            saveDetInd.textContent = '✓ Детали сохранены';
+
+            detRow.appendChild(saveDetBtn);
+            detRow.appendChild(saveDetInd);
+            detBox.appendChild(detRow);
+            tdDetails.appendChild(detBox);
+            tr.appendChild(tdDetails);
+
+            // 5. Статус
+            const tdStatus = document.createElement('td');
+            const statusSel = document.createElement('select');
+            statusSel.className = 'status-select';
+            ['Новая', 'В обработке', 'Съемка проведена', 'Готово', 'Отменена'].forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s;
+                opt.textContent = s;
+                if (b.status === s) opt.selected = true;
+                statusSel.appendChild(opt);
+            });
+            statusSel.onchange = () => changeStatus(b.id, statusSel.value);
+            tdStatus.appendChild(statusSel);
+            tr.appendChild(tdStatus);
+
+            // 6. Ссылка на диск
+            const tdUrl = document.createElement('td');
+            const urlInp = document.createElement('input');
+            urlInp.type = 'text';
+            urlInp.className = 'url-input';
+            urlInp.placeholder = 'Ссылка на диск...';
+            urlInp.value = b.downloadUrl || '';
+            urlInp.onchange = () => changeDownloadUrl(b.id, urlInp.value);
+            tdUrl.appendChild(urlInp);
+            tr.appendChild(tdUrl);
+
+            // 7. Действия
+            const tdActions = document.createElement('td');
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-delete';
+            delBtn.textContent = 'Удалить';
+            delBtn.onclick = () => deleteBooking(b.id);
+            tdActions.appendChild(delBtn);
+            tr.appendChild(tdActions);
+
+            tableBody.appendChild(tr);
+        });
+    }
+
+    async function saveDetails(id) {
+        const text = document.getElementById(`details_${id}`).value;
+        const indicator = document.getElementById(`saved_det_${id}`);
+
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}/details`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(text)
+            });
+
+            if (res.ok) {
+                const item = allBookingsList.find(b => b.id === id);
+                if (item) item.details = text;
+
+                if (indicator) {
+                    indicator.style.display = 'inline';
+                    setTimeout(() => indicator.style.display = 'none', 2000);
+                }
+            } else if (res.status === 401) {
+                handleAuthError();
+            } else {
+                alert('Не удалось сохранить детали');
+            }
+        } catch (e) {
+            alert('Ошибка сети при сохранении деталей');
+        }
+    }
+
+    async function saveDateTimeAndPrice(id) {
+        const dateVal = document.getElementById(`date_${id}`).value;
+        const timeVal = document.getElementById(`time_${id}`).value;
+        const priceVal = parseInt(document.getElementById(`price_${id}`).value, 10) || 0;
+        const indicator = document.getElementById(`saved_dt_${id}`);
+
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}/edit`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    bookingDate: dateVal,
+                    bookingTime: timeVal,
+                    totalPrice: priceVal
+                })
+            });
+
+            if (res.ok) {
+                const item = allBookingsList.find(b => b.id === id);
+                if (item) {
+                    item.bookingDate = dateVal;
+                    item.bookingTime = timeVal;
+                    item.totalPrice = priceVal;
+                }
+                loadStats();
+                if (indicator) {
+                    indicator.style.display = 'inline';
+                    setTimeout(() => indicator.style.display = 'none', 2000);
+                }
+            } else if (res.status === 401) {
+                handleAuthError();
+            } else {
+                alert('Не удалось сохранить данные');
+            }
+        } catch (e) {
+            alert('Ошибка сети при сохранении');
+        }
+    }
+
+    async function changeStatus(id, newStatus) {
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}/status`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(newStatus)
+            });
+            if (res.ok) {
+                loadStats();
+                const item = allBookingsList.find(b => b.id === id);
+                if (item) item.status = newStatus;
+            } else if (res.status === 401) {
+                handleAuthError();
+            } else {
+                alert('Не удалось обновить статус');
+            }
+        } catch (e) {
+            alert('Ошибка сети при смене статуса');
+        }
+    }
+
+    async function changeDownloadUrl(id, url) {
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}/download-url`, {
+                method: 'PATCH',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(url)
+            });
+            if (res.ok) {
+                const item = allBookingsList.find(b => b.id === id);
+                if (item) item.downloadUrl = url;
+            } else if (res.status === 401) {
+                handleAuthError();
+            } else {
+                alert('Не удалось сохранить ссылку');
+            }
+        } catch (e) {
+            alert('Ошибка сети при сохранении ссылки');
+        }
+    }
+
+    async function deleteBooking(id) {
+        if (!confirm(`Удалить заявку #${id}?`)) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/booking/${id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                loadBookings(currentBookingPage);
+                loadStats();
+            } else if (res.status === 401) {
+                handleAuthError();
+            } else {
+                alert('Ошибка при удалении');
+            }
+        } catch (e) {
+            alert('Ошибка сети при удалении');
+        }
+    }
+
+    // === Отзывы в админке с пагинацией и защитой от Stored XSS ===
+    async function loadAdminReviews(page = 0) {
+        currentReviewPage = page;
+        const tableBody = document.getElementById('reviewsTable');
+        tableBody.innerHTML = '<tr><td colspan="7">Загрузка отзывов...</td></tr>';
+        try {
+            const res = await fetch(`${API_BASE}/api/reviews/all?page=${page}&size=20`, { headers: getAuthHeaders() });
+            if (res.status === 401) {
+                handleAuthError();
+                return;
+            }
+            if (res.ok) {
+                const data = await res.json();
+                let reviews = [];
+                if (data.content) {
+                    reviews = data.content;
+                    totalReviewPages = data.totalPages || 1;
+                } else if (Array.isArray(data)) {
+                    reviews = data;
+                    totalReviewPages = 1;
+                } else {
+                    reviews = [];
+                    totalReviewPages = 1;
+                }
+
+                document.getElementById('reviewPageInfo').textContent = `Страница ${currentReviewPage + 1} из ${Math.max(1, totalReviewPages)}`;
+                document.getElementById('prevReviewBtn').disabled = (currentReviewPage <= 0);
+                document.getElementById('nextReviewBtn').disabled = (currentReviewPage >= totalReviewPages - 1);
+
+                tableBody.innerHTML = '';
+                if (reviews.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="7">Отзывов пока нет.</td></tr>';
+                    return;
+                }
+
+                reviews.forEach(r => {
+                    const tr = document.createElement('tr');
+
+                    // ID
+                    const tdId = document.createElement('td');
+                    tdId.textContent = `#${r.id}`;
+                    tr.appendChild(tdId);
+
+                    // Автор (XSS-safe textContent)
+                    const tdAuthor = document.createElement('td');
+                    const strongAuthor = document.createElement('strong');
+                    strongAuthor.textContent = r.authorName || 'Аноним';
+                    tdAuthor.appendChild(strongAuthor);
+                    tr.appendChild(tdAuthor);
+
+                    // Оценка
+                    const tdRating = document.createElement('td');
+                    tdRating.textContent = '⭐'.repeat(r.rating || 5);
+                    tr.appendChild(tdRating);
+
+                    // Текст (XSS-safe textContent)
+                    const tdComment = document.createElement('td');
+                    tdComment.style.maxWidth = '350px';
+                    tdComment.textContent = r.comment || '';
+                    tr.appendChild(tdComment);
+
+                    // Дата
+                    const tdDate = document.createElement('td');
+                    tdDate.textContent = r.createdAt || '';
+                    tr.appendChild(tdDate);
+
+                    // Статус
+                    const tdStatus = document.createElement('td');
+                    const badge = document.createElement('span');
+                    if (r.approved) {
+                        badge.className = 'badge-approved';
+                        badge.textContent = '✓ Одобрен';
+                    } else {
+                        badge.className = 'badge-pending';
+                        badge.textContent = '⏳ Ожидает';
+                    }
+                    tdStatus.appendChild(badge);
+                    tr.appendChild(tdStatus);
+
+                    // Действия
+                    const tdActions = document.createElement('td');
+                    if (!r.approved) {
+                        const appBtn = document.createElement('button');
+                        appBtn.className = 'btn-sm btn-approve';
+                        appBtn.textContent = '✅ Одобрить';
+                        appBtn.onclick = () => approveReview(r.id);
+                        tdActions.appendChild(appBtn);
+
+                        const rejBtn = document.createElement('button');
+                        rejBtn.className = 'btn-delete';
+                        rejBtn.textContent = '❌ Отклонить';
+                        rejBtn.onclick = () => deleteReview(r.id);
+                        tdActions.appendChild(rejBtn);
+                    } else {
+                        const delBtn = document.createElement('button');
+                        delBtn.className = 'btn-delete';
+                        delBtn.textContent = 'Удалить';
+                        delBtn.onclick = () => deleteReview(r.id);
+                        tdActions.appendChild(delBtn);
+                    }
+                    tr.appendChild(tdActions);
+
+                    tableBody.appendChild(tr);
+                });
+            }
+        } catch (e) {
+            tableBody.innerHTML = '<tr><td colspan="7" class="table-error">Ошибка загрузки отзывов</td></tr>';
+        }
+    }
+
+    function changeReviewPage(delta) {
+        const target = currentReviewPage + delta;
+        if (target >= 0 && target < totalReviewPages) {
+            loadAdminReviews(target);
+        }
+    }
+
+    async function approveReview(id) {
+        try {
+            const res = await fetch(`${API_BASE}/api/reviews/${id}/approve`, {
+                method: 'PATCH',
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                loadAdminReviews(currentReviewPage);
+            } else if (res.status === 401) {
+                handleAuthError();
+            } else {
+                alert('Не удалось одобрить отзыв');
+            }
+        } catch (e) {
+            alert('Ошибка сети при одобрении');
+        }
+    }
+
+    async function deleteReview(id) {
+        if (!confirm(`Удалить / отклонить отзыв #${id}?`)) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/reviews/${id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            if (res.ok) {
+                loadAdminReviews(currentReviewPage);
+            } else if (res.status === 401) {
+                handleAuthError();
+            } else {
+                alert('Ошибка при удалении отзыва');
+            }
+        } catch (e) {
+            alert('Ошибка сети при удалении отзыва');
+        }
+    }

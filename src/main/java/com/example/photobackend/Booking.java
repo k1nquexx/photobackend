@@ -15,10 +15,26 @@ public class Booking {
     private String details;
     private String status = "Новая";
     private String downloadUrl; // Ссылка на облачный диск с готовыми фото
-    private Integer totalPrice; // Итоговая стоимость
+    private Integer totalPrice; // Итоговая стоимость (рассчитывается сервером!)
     private String bookingDate; // Дата съемки (ГГГГ-ММ-ДД)
     private String bookingTime; // Время съемки (ЧЧ:ММ)
     private String promoCode;   // Использованный промокод
+    private String trackingToken; // Случайный секретный токен для безопасной проверки статуса
+    private String createdAt;   // Дата и время создания заявки (ГГГГ-ММ-ДД ЧЧ:ММ:СС)
+    private String clientIp;    // IP-адрес клиента при создании заявки
+
+    // Параметры расчета из формы калькулятора (не сохраняются как отдельные колонки БД)
+    @Transient
+    private Integer shootTypeRate;
+
+    @Transient
+    private Integer hours;
+
+    @Transient
+    private boolean addonExpress;
+
+    @Transient
+    private boolean addonStudio;
 
     public Booking() {}
 
@@ -60,4 +76,25 @@ public class Booking {
 
     public String getPromoCode() { return promoCode; }
     public void setPromoCode(String promoCode) { this.promoCode = promoCode; }
+
+    public String getTrackingToken() { return trackingToken; }
+    public void setTrackingToken(String trackingToken) { this.trackingToken = trackingToken; }
+
+    public String getCreatedAt() { return createdAt; }
+    public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+
+    public String getClientIp() { return clientIp; }
+    public void setClientIp(String clientIp) { this.clientIp = clientIp; }
+
+    public Integer getShootTypeRate() { return shootTypeRate; }
+    public void setShootTypeRate(Integer shootTypeRate) { this.shootTypeRate = shootTypeRate; }
+
+    public Integer getHours() { return hours; }
+    public void setHours(Integer hours) { this.hours = hours; }
+
+    public boolean isAddonExpress() { return addonExpress; }
+    public void setAddonExpress(boolean addonExpress) { this.addonExpress = addonExpress; }
+
+    public boolean isAddonStudio() { return addonStudio; }
+    public void setAddonStudio(boolean addonStudio) { this.addonStudio = addonStudio; }
 }

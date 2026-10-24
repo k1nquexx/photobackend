@@ -1,11 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    const API_BASE = (window.location.protocol === 'file:' || (window.location.port && window.location.port !== '8080'))
-        ? 'http://localhost:8080'
-        : '';
-
     // ==========================================
-    // 1. Калькулятор стоимости + Промокоды
+    // 1. Калькулятор стоимости + Промокоды + Конфиг с сервера
     // ==========================================
     const shootType = document.getElementById('shootType');
     const hoursRange = document.getElementById('hoursRange');
@@ -25,6 +21,29 @@ document.addEventListener('DOMContentLoaded', () => {
     let appliedPromoCode = '';
     let currentCalculatedPrice = 2000;
 
+    // Конфиг цен по умолчанию (переопределяется с бэкенда)
+    let serverPricing = {
+        rates: { 1000: 1000, 1500: 1500, 2000: 2000 },
+        addons: { express: 1000, studio: 1500 },
+        promoCodes: { START10: { type: 'percent', value: 10 }, FOTO500: { type: 'fixed', value: 500 } }
+    };
+
+    async function loadPricingConfig() {
+        try {
+            const res = await fetch(`${API_BASE}/api/pricing/config`);
+            if (res.ok) {
+                const cfg = await res.json();
+                if (cfg) {
+                    serverPricing = cfg;
+                    calculate();
+                }
+            }
+        } catch (e) {
+            console.warn('Серверный конфигуратор цен недоступен, используются резервные значения.');
+        }
+    }
+    loadPricingConfig();
+
     function updateBookingSummary() {
         const summaryDate = document.getElementById('summaryDate');
         const summaryTime = document.getElementById('summaryTime');
@@ -39,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             summaryTime.textContent = timeVal ? `в ${timeVal}` : '(окно не выбрано)';
         }
         if (summaryPrice) {
-            summaryPrice.textContent = currentCalculatedPrice.toLocaleString('ru-RU');
+            summaryPrice.textContent = formatCurrency(currentCalculatedPrice);
         }
     }
 
@@ -68,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         currentCalculatedPrice = finalTotal;
-        totalPriceEl.textContent = finalTotal.toLocaleString('ru-RU');
+        totalPriceEl.textContent = formatCurrency(finalTotal);
         updateBookingSummary();
     }
 
@@ -189,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const notice = document.getElementById('selectedCalcNotice');
             if (notice) {
                 notice.style.display = 'block';
-                notice.innerHTML = `✓ <strong>Выбран расчет:</strong> ${detailsText} — <strong>${currentCalculatedPrice.toLocaleString('ru-RU')} ₽</strong>`;
+                notice.textContent = `✓ Выбран расчет: ${detailsText} — ${formatCurrency(currentCalculatedPrice)} ₽`;
             }
 
             const detailsField = document.getElementById('bookingDetails');
@@ -271,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // ==========================================
-    // 6. Отзывы клиентов (Загрузка и Отправка)
+    // 6. Отзывы клиентов (Защита от Stored XSS)
     // ==========================================
     const reviewsContainer = document.getElementById('reviewsContainer');
     const reviewForm = document.getElementById('reviewForm');
@@ -292,14 +311,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     const stars = '⭐'.repeat(r.rating || 5);
                     const card = document.createElement('div');
                     card.className = 'review-card';
-                    card.innerHTML = `
-                        <div class="review-header">
-                            <span class="review-author">${escapeHtml(r.authorName)}</span>
-                            <span class="review-stars">${stars}</span>
-                        </div>
-                        <p class="review-text">${escapeHtml(r.comment)}</p>
-                        <div class="review-date">${escapeHtml(r.createdAt || '')}</div>
-                    `;
+
+                    const header = document.createElement('div');
+                    header.className = 'review-header';
+
+                    const author = document.createElement('span');
+                    author.className = 'review-author';
+                    author.textContent = r.authorName || 'Гость';
+
+                    const starsEl = document.createElement('span');
+                    starsEl.className = 'review-stars';
+                    starsEl.textContent = stars;
+
+                    header.appendChild(author);
+                    header.appendChild(starsEl);
+
+                    const text = document.createElement('p');
+                    text.className = 'review-text';
+                    text.textContent = r.comment || '';
+
+                    const date = document.createElement('div');
+                    date.className = 'review-date';
+                    date.textContent = r.createdAt || '';
+
+                    card.appendChild(header);
+                    card.appendChild(text);
+                    card.appendChild(date);
+
                     reviewsContainer.appendChild(card);
                 });
             }
@@ -344,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // ==========================================
-    // 7. Отправка заявки на съемку
+    // 7. Отправка заявки на съемку с серверной валидацией цены
     // ==========================================
     const bookingForm = document.getElementById('bookingForm');
     const bookingAlert = document.getElementById('bookingAlert');
@@ -365,12 +403,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (!details || !details.trim()) {
-                details = `Съемка на ${bookingDate} в ${bookingTime} | Стоимость: ${currentCalculatedPrice} ₽`;
+                details = `Съемка на ${bookingDate} в ${bookingTime}`;
             }
 
             bookingAlert.textContent = 'Отправка заявки...';
             bookingAlert.classList.remove('d-none');
             bookingAlert.style.color = '#e6cc98';
+
+            const rateVal = shootType ? parseInt(shootType.value, 10) : 1000;
+            const hoursVal = hoursRange ? parseInt(hoursRange.value, 10) : 2;
+            const addonExp = document.getElementById('addonExpress') ? document.getElementById('addonExpress').checked : false;
+            const addonStd = document.getElementById('addonStudio') ? document.getElementById('addonStudio').checked : false;
 
             try {
                 const response = await fetch(`${API_BASE}/api/booking`, {
@@ -382,20 +425,41 @@ document.addEventListener('DOMContentLoaded', () => {
                         details: details,
                         bookingDate: bookingDate,
                         bookingTime: bookingTime,
-                        totalPrice: currentCalculatedPrice,
+                        shootTypeRate: rateVal,
+                        hours: hoursVal,
+                        addonExpress: addonExp,
+                        addonStudio: addonStd,
                         promoCode: appliedPromoCode || null
                     })
                 });
 
                 if (response.ok) {
-                    bookingAlert.textContent = await response.text();
-                    bookingAlert.style.color = '#75b798';
+                    const data = await response.json();
+                    bookingAlert.innerHTML = `
+                        <div style="color: #75b798; font-weight: bold; margin-bottom: 8px;">✓ Заявка успешно отправлена! Номер: #${escapeHtml(data.orderId)}</div>
+                        <div style="background: #202020; border: 1px solid #444; border-radius: 4px; padding: 12px; margin-bottom: 6px; text-align: center;">
+                            <div style="font-size: 12px; color: #aaa; margin-bottom: 4px;">Ваш персональный код отслеживания:</div>
+                            <div style="font-size: 20px; font-weight: bold; color: #e6cc98; letter-spacing: 2px;">${escapeHtml(data.trackingToken)}</div>
+                        </div>
+                        <div style="font-size: 12px; color: #888;">Сохраните этот код — по нему можно в 1 клик проверить статус заказа и скачать готовые фото в блоке ниже!</div>
+                    `;
                     bookingForm.reset();
-                    // Перезагружаем окна на выбранную дату (забронированное окно исчезнет)
                     if (bookingDate) loadAvailableTimeSlots(bookingDate);
                     updateBookingSummary();
                     const notice = document.getElementById('selectedCalcNotice');
                     if (notice) notice.style.display = 'none';
+
+                    // Автоматически подставляем код в форму проверки для удобства
+                    const statusTokenInput = document.getElementById('statusToken');
+                    if (statusTokenInput && data.trackingToken) {
+                        statusTokenInput.value = data.trackingToken;
+                    }
+                } else if (response.status === 409) {
+                    const errorJson = await response.json().catch(() => null);
+                    const conflictMsg = (errorJson && errorJson.error) ? errorJson.error : 'Окно уже занято';
+                    bookingAlert.textContent = conflictMsg;
+                    bookingAlert.style.color = '#ea868f';
+                    if (bookingDate) loadAvailableTimeSlots(bookingDate);
                 } else {
                     bookingAlert.textContent = 'Ошибка сервера при сохранении заявки.';
                     bookingAlert.style.color = '#ea868f';
@@ -409,43 +473,92 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // ==========================================
-    // 8. Проверка статуса заказа
+    // 8. Проверка статуса заказа (По коду отслеживания или ID + телефон)
     // ==========================================
     const statusForm = document.getElementById('statusForm');
     const statusResult = document.getElementById('statusResult');
+    const altToggle = document.getElementById('altStatusToggle');
+    const altFields = document.getElementById('altStatusFields');
+
+    if (altToggle && altFields) {
+        altToggle.addEventListener('click', () => {
+            if (altFields.style.display === 'none') {
+                altFields.style.display = 'block';
+                altToggle.textContent = '▲ Скрыть альтернативные поля';
+            } else {
+                altFields.style.display = 'none';
+                altToggle.textContent = 'Потеряли код? Проверить по номеру заявки и телефону';
+            }
+        });
+    }
 
     if (statusForm) {
         statusForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const phone = document.getElementById('statusPhone').value;
+            const tokenInput = document.getElementById('statusToken');
+            const token = tokenInput ? tokenInput.value.trim().toUpperCase() : '';
+            const phone = document.getElementById('statusPhone') ? document.getElementById('statusPhone').value.trim() : '';
+            const orderIdInp = document.getElementById('statusOrderId');
+            const orderId = orderIdInp ? orderIdInp.value.trim() : '';
 
-            statusResult.innerHTML = 'Поиск в базе данных...';
+            let queryUrl = '';
+            if (token) {
+                queryUrl = `${API_BASE}/api/status?token=${encodeURIComponent(token)}`;
+            } else if (orderId && phone) {
+                queryUrl = `${API_BASE}/api/status?orderId=${encodeURIComponent(orderId)}&phone=${encodeURIComponent(phone)}`;
+            } else {
+                alert('Пожалуйста, введите код отслеживания или номер заявки с телефоном!');
+                return;
+            }
+
+            statusResult.innerHTML = '<span style="color:#aaa;">Поиск в базе данных...</span>';
             statusResult.classList.remove('d-none');
 
             try {
-                const response = await fetch(`${API_BASE}/api/status?phone=` + encodeURIComponent(phone));
+                const response = await fetch(queryUrl);
 
                 if (response.ok) {
                     const data = await response.json();
-                    let html = `<p style="margin-bottom: 6px;"><strong>Клиент:</strong> ${escapeHtml(data.clientName || 'Гость')}</p>`;
-                    html += `<p style="margin-bottom: 6px;"><strong>Статус заказа:</strong> <span style="color: #e6cc98; font-weight: bold;">${escapeHtml(data.status)}</span></p>`;
-                    if (data.bookingDate) {
-                        html += `<p style="margin-bottom: 6px; font-size: 14px; color: #888;">📅 Дата съемки: ${escapeHtml(data.bookingDate)} ${escapeHtml(data.bookingTime || '')}</p>`;
+                    statusResult.innerHTML = '';
+
+                    const orderNumP = document.createElement('p');
+                    orderNumP.style.marginBottom = '6px';
+                    orderNumP.textContent = `Заявка #${data.id || ''}`;
+                    if (data.trackingToken) {
+                        orderNumP.innerHTML += ` <span style="font-size:12px; color:#e6cc98;">(${escapeHtml(data.trackingToken)})</span>`;
                     }
-                    if (data.totalPrice) {
-                        html += `<p style="margin-bottom: 6px; font-size: 14px; color: #888;">💰 Сумма: <strong>${data.totalPrice.toLocaleString('ru-RU')} ₽</strong></p>`;
+                    statusResult.appendChild(orderNumP);
+
+                    const clientP = document.createElement('p');
+                    clientP.style.marginBottom = '6px';
+                    clientP.innerHTML = `<strong>Клиент:</strong> <span>${escapeHtml(data.clientName || 'Гость')}</span>`;
+                    statusResult.appendChild(clientP);
+
+                    const statusP = document.createElement('p');
+                    statusP.style.marginBottom = '6px';
+                    statusP.innerHTML = `<strong>Статус заказа:</strong> <span style="color: #e6cc98; font-weight: bold;">${escapeHtml(data.status)}</span>`;
+                    statusResult.appendChild(statusP);
+
+                    if (data.bookingDate) {
+                        const dateP = document.createElement('p');
+                        dateP.style.cssText = 'margin-bottom: 6px; font-size: 14px; color: #888;';
+                        dateP.textContent = `📅 Дата съемки: ${data.bookingDate} ${data.bookingTime || ''}`;
+                        statusResult.appendChild(dateP);
                     }
 
-                    if (data.downloadUrl && data.downloadUrl.trim() !== '') {
-                        html += `
-                            <div style="margin-top: 15px;">
-                                <a href="${escapeHtml(data.downloadUrl)}" target="_blank" class="btn-primary" style="display: inline-block; padding: 12px 20px; text-decoration: none; font-size: 13px; border-radius: 4px;">
-                                    📥 Скачать готовые фотографии
-                                </a>
-                            </div>
-                        `;
+                    if (data.downloadUrl && (data.downloadUrl.startsWith('https://') || data.downloadUrl.startsWith('http://'))) {
+                        const dlDiv = document.createElement('div');
+                        dlDiv.style.marginTop = '15px';
+                        const dlLink = document.createElement('a');
+                        dlLink.href = data.downloadUrl;
+                        dlLink.target = '_blank';
+                        dlLink.rel = 'noopener noreferrer';
+                        dlLink.className = 'btn-primary';
+                        dlLink.style.cssText = 'display: inline-block; padding: 12px 20px; text-decoration: none; font-size: 13px; border-radius: 4px;';
+                        dlLink.textContent = '📥 Скачать готовые фотографии';
+                        dlDiv.appendChild(dlLink);
+                        statusResult.appendChild(dlDiv);
                     }
-                    statusResult.innerHTML = html;
                 } else if (response.status === 404) {
                     const errorMsg = await response.text();
                     statusResult.innerHTML = `<span style="color: #ea868f;">${escapeHtml(errorMsg)}</span>`;
@@ -456,10 +569,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 statusResult.innerHTML = '<span style="color: #ea868f;">Нет связи с сервером.</span>';
             }
         });
-    }
-
-    function escapeHtml(str) {
-        return (str || '').toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
 });

@@ -3,15 +3,21 @@ package com.example.photobackend;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "time_slots")
+@Table(name = "time_slots", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"slotDate", "slotTime"})
+})
 public class TimeSlot {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private String slotDate; // Дата: "2026-10-25"
+
+    @Column(nullable = false)
     private String slotTime; // Время: "14:00"
+
     private boolean isBooked = false; // Занято или свободно
 
     public TimeSlot() {}

@@ -286,9 +286,19 @@
 
             <div class="form-box status-box">
                 <h2>Ждете фотографии?</h2>
-                <p>Введите номер телефона, чтобы узнать статус готовности или получить ссылку на скачивание.</p>
+                <p>Введите ваш уникальный <strong>код отслеживания</strong> (например: TRK-A7X9K2P4), полученный при создании заявки:</p>
                 <form id="statusForm">
-                    <input type="tel" id="statusPhone" placeholder="+7 (999) 000-00-00" required>
+                    <input type="text" id="statusToken" placeholder="Код отслеживания (TRK-...)" style="margin-bottom: 10px; width: 100%; background: #181818; border: 1px solid #444; color: #e6cc98; padding: 12px; border-radius: 4px; font-size: 15px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase;">
+                    
+                    <div id="altStatusToggle" style="margin-bottom: 12px; font-size: 13px; color: #888; cursor: pointer; text-decoration: underline;">
+                        Потеряли код? Проверить по номеру заявки и телефону
+                    </div>
+
+                    <div id="altStatusFields" style="display: none; margin-bottom: 12px;">
+                        <input type="number" id="statusOrderId" placeholder="Номер заявки (например, 1)" style="margin-bottom: 10px; width: 100%; background: #181818; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 4px; font-size: 15px;">
+                        <input type="tel" id="statusPhone" placeholder="+7 (999) 000-00-00">
+                    </div>
+
                     <button type="submit" class="btn-secondary w-100">Проверить статус</button>
                 </form>
                 <div id="statusResult" class="status-result"></div>
@@ -332,6 +342,7 @@
     </div>
 </footer>
 
-<script src="main.js?v=4"></script>
+<script src="common.js"></script>
+<script src="main.js?v=5"></script>
 </body>
 </html>

@@ -1,6 +1,8 @@
 package com.example.photobackend;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -12,38 +14,65 @@ public class TimeSlotController {
     @Autowired
     private TimeSlotRepository timeSlotRepository;
 
-    // Свободные окна для клиентов на выбранную дату
+    @Autowired
+    private AdminAuthService adminAuthService;
+
+    // Публичные свободные окна для клиентов на выбранную дату
     @GetMapping
     public List<TimeSlot> getAvailableSlots(@RequestParam String date) {
-        return timeSlotRepository.findBySlotDateAndIsBookedFalse(date);
+        return timeSlotRepository.findBySlotDateAndIsBookedFalseOrderBySlotTimeAsc(date);
     }
 
     // Все окна на дату для фотографа
+    @AdminOnly
     @GetMapping("/all")
-    public List<TimeSlot> getAllSlotsByDate(@RequestParam(required = false) String date) {
-        if (date != null && !date.isEmpty()) {
-            return timeSlotRepository.findBySlotDateOrderBySlotTimeAsc(date);
+    public ResponseEntity<?> getAllSlotsByDate(
+            @RequestParam(required = false) String date,
+            @RequestHeader(value = "X-Admin-Token", required = false) String token) {
+
+        if (!adminAuthService.isValid(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен: требуется токен администратора");
         }
-        return timeSlotRepository.findAll();
+
+        if (date != null && !date.isEmpty()) {
+            return ResponseEntity.ok(timeSlotRepository.findBySlotDateOrderBySlotTimeAsc(date));
+        }
+        return ResponseEntity.ok(timeSlotRepository.findAll());
     }
 
     // Добавление окна
+    @AdminOnly
     @PostMapping
-    public String addSlot(@RequestBody TimeSlot slot) {
+    public ResponseEntity<?> addSlot(
+            @RequestBody TimeSlot slot,
+            @RequestHeader(value = "X-Admin-Token", required = false) String token) {
+
+        if (!adminAuthService.isValid(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен: требуется токен администратора");
+        }
+
         if (timeSlotRepository.findBySlotDateAndSlotTime(slot.getSlotDate(), slot.getSlotTime()).isPresent()) {
-            return "Окно на это время уже существует";
+            return ResponseEntity.badRequest().body("Окно на это время уже существует");
         }
         timeSlotRepository.save(slot);
-        return "Окно добавлено";
+        return ResponseEntity.ok("Окно добавлено");
     }
 
-    // Быстрое переключение: если слота нет — создаем, если есть — удаляем (или меняем занятость)
+    // Удаление окна
+    @AdminOnly
     @DeleteMapping("/{id}")
-    public String deleteSlot(@PathVariable Long id) {
+    public ResponseEntity<?> deleteSlot(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Admin-Token", required = false) String token) {
+
+        if (!adminAuthService.isValid(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен: требуется токен администратора");
+        }
+
         if (timeSlotRepository.existsById(id)) {
             timeSlotRepository.deleteById(id);
-            return "Окно удалено";
+            return ResponseEntity.ok("Окно удалено");
         }
-        return "Окно не найдено";
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Окно не найдено");
     }
 }

@@ -204,40 +204,40 @@
 
 </div>
 
+<script src="common.js"></script>
 <script>
-    const API_BASE = (window.location.protocol === 'file:' || (window.location.port && window.location.port !== '8080'))
-        ? 'http://localhost:8080'
-        : '';
-
-    // Авторизация
-    if (sessionStorage.getItem('isAdminLoggedIn') === 'true') {
+    // Авторизация по сессионному токену
+    if (sessionStorage.getItem('adminToken')) {
         showSchedule();
     }
 
     async function checkAdminPassword() {
         const pass = document.getElementById('adminPassInput').value;
+        const errDiv = document.getElementById('loginError');
+
         try {
             const res = await fetch(`${API_BASE}/api/admin/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(pass)
             });
-            const isOk = await res.json();
-            if (isOk || pass === 'admin123') {
-                sessionStorage.setItem('isAdminLoggedIn', 'true');
+
+            if (res.ok) {
+                const data = await res.json();
+                sessionStorage.setItem('adminToken', data.token);
+                errDiv.style.display = 'none';
                 showSchedule();
             } else {
-                document.getElementById('loginError').style.display = 'block';
+                errDiv.style.display = 'block';
             }
         } catch (e) {
-            if (pass === 'admin123') {
-                sessionStorage.setItem('isAdminLoggedIn', 'true');
-                showSchedule();
-            } else {
-                document.getElementById('loginError').style.display = 'block';
-            }
+            errDiv.style.display = 'block';
         }
     }
+
+    document.getElementById('adminPassInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') checkAdminPassword();
+    });
 
     function showSchedule() {
         document.getElementById('loginBox').classList.add('hidden');
@@ -259,7 +259,17 @@
         container.innerHTML = '<p style="color:#888;">Загрузка окон...</p>';
 
         try {
-            const res = await fetch(`${API_BASE}/api/slots/all?date=${encodeURIComponent(date)}`);
+            const res = await fetch(`${API_BASE}/api/slots/all?date=${encodeURIComponent(date)}`, {
+                headers: getAuthHeaders()
+            });
+
+            if (res.status === 401) {
+                alert('Сессия истекла. Войдите снова.');
+                sessionStorage.removeItem('adminToken');
+                location.reload();
+                return;
+            }
+
             if (res.ok) {
                 const slots = await res.json();
                 container.innerHTML = '';
@@ -272,15 +282,26 @@
                 slots.forEach(s => {
                     const pill = document.createElement('div');
                     pill.className = `slot-pill ${s.booked ? 'booked' : ''}`;
-                    pill.innerHTML = `
-                        <div>
-                            <div class="slot-time">${s.slotTime}</div>
-                            <span class="slot-badge ${s.booked ? 'badge-busy' : 'badge-free'}">
-                                ${s.booked ? 'Занято' : 'Свободно'}
-                            </span>
-                        </div>
-                        <button class="btn-del-slot" onclick="deleteSlot(${s.id})" title="Удалить окно">✕</button>
-                    `;
+
+                    const infoDiv = document.createElement('div');
+                    const timeDiv = document.createElement('div');
+                    timeDiv.className = 'slot-time';
+                    timeDiv.textContent = s.slotTime || '';
+                    infoDiv.appendChild(timeDiv);
+
+                    const badge = document.createElement('span');
+                    badge.className = `slot-badge ${s.booked ? 'badge-busy' : 'badge-free'}`;
+                    badge.textContent = s.booked ? 'Занято' : 'Свободно';
+                    infoDiv.appendChild(badge);
+
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'btn-del-slot';
+                    delBtn.textContent = '✕';
+                    delBtn.title = 'Удалить окно';
+                    delBtn.onclick = () => deleteSlot(s.id);
+
+                    pill.appendChild(infoDiv);
+                    pill.appendChild(delBtn);
                     container.appendChild(pill);
                 });
             }
@@ -299,9 +320,15 @@
         try {
             const res = await fetch(`${API_BASE}/api/slots`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({ slotDate: date, slotTime: timeStr })
             });
+
+            if (res.status === 401) {
+                alert('Требуется авторизация');
+                return;
+            }
+
             loadSlotsForDate();
         } catch (e) {
             alert('Ошибка при добавлении окна');
@@ -328,7 +355,16 @@
     async function deleteSlot(id) {
         if (!confirm('Удалить это окно записи?')) return;
         try {
-            const res = await fetch(`${API_BASE}/api/slots/${id}`, { method: 'DELETE' });
+            const res = await fetch(`${API_BASE}/api/slots/${id}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+
+            if (res.status === 401) {
+                alert('Требуется авторизация');
+                return;
+            }
+
             if (res.ok) {
                 loadSlotsForDate();
             }

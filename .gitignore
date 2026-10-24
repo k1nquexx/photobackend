@@ -36,4 +36,8 @@ out/
 ### VS Code ###
 .vscode/
 
+### Database ###
+data/
+*.mv.db
 *.trace.db
+

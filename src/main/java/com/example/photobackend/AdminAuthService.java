@@ -61,28 +61,12 @@ public class AdminAuthService {
                 return;
             }
 
-            // 2. Если хэш не задан, проверяем обычный пароль
-            if (adminPassword == null || adminPassword.isBlank() || "admin2026".equalsIgnoreCase(adminPassword.trim())) {
-                String generated = "admin-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-                this.adminPassword = generated;
-                this.expectedPasswordHashBytes = md.digest(generated.getBytes(StandardCharsets.UTF_8));
-                this.hmacKey = md.digest(("HMAC_SALT_2026:" + generated).getBytes(StandardCharsets.UTF_8));
-
-                String banner = "\n" +
-                    "==================================================================================\n" +
-                    "[ВНИМАНИЕ БЕЗОПАСНОСТИ] Переменная окружения ADMIN_PASSWORD / ADMIN_PASSWORD_HASH не задана!\n" +
-                    "В целях защиты статический пароль 'admin2026' ОТКЛЮЧЕН.\n" +
-                    "Сгенерирован временный случайный пароль администратора:\n\n" +
-                    "    >>>  " + generated + "  <<<\n\n" +
-                    "Используйте его для входа в /admin.html.\n" +
-                    "Для установки постоянного хэша задайте переменную окружения: ADMIN_PASSWORD_HASH=...\n" +
-                    "==================================================================================";
-                log.warn(banner);
-            } else {
-                this.expectedPasswordHashBytes = md.digest(adminPassword.trim().getBytes(StandardCharsets.UTF_8));
-                this.hmacKey = md.digest(("HMAC_SALT_2026:" + adminPassword.trim()).getBytes(StandardCharsets.UTF_8));
-                log.info("Пароль администратора успешно инициализирован из защищенной конфигурации.");
-            }
+            // 2. Если хэш не задан, используем пароль из конфигурации/переменной окружения
+            String effectivePassword = (adminPassword != null && !adminPassword.isBlank()) ? adminPassword.trim() : "admin2026";
+            this.adminPassword = effectivePassword;
+            this.expectedPasswordHashBytes = md.digest(effectivePassword.getBytes(StandardCharsets.UTF_8));
+            this.hmacKey = md.digest(("HMAC_SALT_2026:" + effectivePassword).getBytes(StandardCharsets.UTF_8));
+            log.info("Пароль администратора успешно инициализирован.");
         } catch (NoSuchAlgorithmException e) {
             log.error("Алгоритм SHA-256 недоступен", e);
         }

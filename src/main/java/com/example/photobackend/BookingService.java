@@ -61,12 +61,15 @@ public class BookingService {
         );
 
         // 2. Атомарное бронирование слота на уровне БД (защита от Race Condition)
+        TimeSlot linkedSlot = null;
         if (req.getBookingDate() != null && req.getBookingTime() != null) {
+            validateFutureBooking(req.getBookingDate(), req.getBookingTime());
             int updatedRows = timeSlotRepository.bookSlotAtomically(req.getBookingDate(), req.getBookingTime());
             if (updatedRows == 0) {
                 throw new SlotConflictException("К сожалению, окно на " + req.getBookingTime() + 
                         " только что было забронировано! Пожалуйста, выберите другое свободное время.");
             }
+            linkedSlot = timeSlotRepository.findBySlotDateAndSlotTime(req.getBookingDate(), req.getBookingTime()).orElse(null);
         }
 
         // 3. Создаем сущность со строгой инициализацией полей и 128-битным UUID v4
@@ -81,6 +84,7 @@ public class BookingService {
         booking.setDetails(req.getDetails());
         booking.setBookingDate(req.getBookingDate());
         booking.setBookingTime(req.getBookingTime());
+        booking.setTimeSlot(linkedSlot);
         booking.setPromoCode(req.getPromoCode());
         booking.setTotalPrice(calculatedPrice);
         booking.setStatus(BookingStatus.NEW.getDisplayName());
@@ -170,15 +174,22 @@ public class BookingService {
         booking.setStatus(cleanStatus);
 
         // Если заказ отменен, освобождаем занятый слот в расписании в той же транзакции
-        if (BookingStatus.CANCELLED.getDisplayName().equalsIgnoreCase(cleanStatus) 
-                && booking.getBookingDate() != null && booking.getBookingTime() != null) {
-            timeSlotRepository.findBySlotDateAndSlotTime(booking.getBookingDate(), booking.getBookingTime())
-                    .ifPresent(slot -> {
-                        slot.setBooked(false);
-                        timeSlotRepository.save(slot);
-                        log.info("Слот {} {} освобожден в связи с отменой заявки {}", 
-                                booking.getBookingDate(), booking.getBookingTime(), identifier);
-                    });
+        if (BookingStatus.CANCELLED.getDisplayName().equalsIgnoreCase(cleanStatus)) {
+            if (booking.getTimeSlot() != null) {
+                TimeSlot slot = booking.getTimeSlot();
+                slot.setBooked(false);
+                timeSlotRepository.save(slot);
+                booking.setTimeSlot(null); // обнуляем ссылку при отмене: исключает коллизии внешнего ключа!
+                log.info("Связанный слот освобожден в связи с отменой заявки {}", identifier);
+            } else if (booking.getBookingDate() != null && booking.getBookingTime() != null) {
+                timeSlotRepository.findBySlotDateAndSlotTime(booking.getBookingDate(), booking.getBookingTime())
+                        .ifPresent(slot -> {
+                            slot.setBooked(false);
+                            timeSlotRepository.save(slot);
+                            log.info("Слот {} {} освобожден в связи с отменой заявки {}", 
+                                    booking.getBookingDate(), booking.getBookingTime(), identifier);
+                        });
+            }
         }
 
         Booking saved = bookingRepository.save(booking);
@@ -240,7 +251,12 @@ public class BookingService {
     public void deleteBooking(String identifier) {
         Booking booking = findBookingByIdentifier(identifier);
 
-        if (booking.getBookingDate() != null && booking.getBookingTime() != null) {
+        if (booking.getTimeSlot() != null) {
+            TimeSlot slot = booking.getTimeSlot();
+            slot.setBooked(false);
+            timeSlotRepository.save(slot);
+            booking.setTimeSlot(null);
+        } else if (booking.getBookingDate() != null && booking.getBookingTime() != null) {
             timeSlotRepository.findBySlotDateAndSlotTime(booking.getBookingDate(), booking.getBookingTime())
                     .ifPresent(slot -> {
                         slot.setBooked(false);
@@ -252,6 +268,27 @@ public class BookingService {
 
         bookingRepository.delete(booking);
         log.info("Заявка {} успешно удалена", identifier);
+    }
+
+    private void validateFutureBooking(String dateStr, String timeStr) {
+        try {
+            java.time.LocalDate bookingDate = java.time.LocalDate.parse(dateStr.trim());
+            java.time.ZonedDateTime nowStudio = java.time.ZonedDateTime.now(TimeSlotService.STUDIO_TIMEZONE);
+            java.time.LocalDate today = nowStudio.toLocalDate();
+            java.time.LocalTime nowTime = nowStudio.toLocalTime();
+
+            if (bookingDate.isBefore(today)) {
+                throw new BadRequestException("Невозможно оформить бронирование на прошедшую дату: " + dateStr);
+            }
+            if (bookingDate.isEqual(today)) {
+                java.time.LocalTime startTime = TimeSlotService.extractStartTime(timeStr);
+                if (startTime != null && !startTime.isAfter(nowTime)) {
+                    throw new BadRequestException("Невозможно оформить бронирование на уже наступившее время: " + timeStr);
+                }
+            }
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new BadRequestException("Неверный формат даты бронирования: " + dateStr);
+        }
     }
 
     // Совместимый метод поиска по числовому Long id

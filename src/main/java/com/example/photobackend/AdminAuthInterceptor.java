@@ -1,5 +1,6 @@
 package com.example.photobackend;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +26,7 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
                     || handlerMethod.getBeanType().isAnnotationPresent(AdminOnly.class);
 
             if (requiresAdmin) {
-                String token = request.getHeader(SecurityConstants.AUTH_HEADER_NAME);
+                String token = extractToken(request);
                 if (!adminAuthService.isValid(token)) {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setCharacterEncoding("UTF-8");
@@ -37,5 +38,32 @@ public class AdminAuthInterceptor implements HandlerInterceptor {
         }
 
         return true;
+    }
+
+    /**
+     * Извлечение авторизационного токена администратора:
+     * 1. В приоритете защищенная HttpOnly сессионная кука 'admin_token'.
+     * 2. Резервный заголовок X-Admin-Token для обратной совместимости с REST API / юнит-тестами.
+     */
+    public static String extractToken(HttpServletRequest request) {
+        if (request == null) return null;
+
+        if (request.getCookies() != null) {
+            for (Cookie c : request.getCookies()) {
+                if ("admin_token".equals(c.getName())) {
+                    String val = c.getValue();
+                    if (val != null && !val.isBlank()) {
+                        return val.trim();
+                    }
+                }
+            }
+        }
+
+        String headerToken = request.getHeader(SecurityConstants.AUTH_HEADER_NAME);
+        if (headerToken != null && !headerToken.isBlank()) {
+            return headerToken.trim();
+        }
+
+        return null;
     }
 }

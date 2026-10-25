@@ -38,6 +38,11 @@ public class Booking {
     private String createdAt;   // Дата и время создания заявки (ГГГГ-ММ-ДД ЧЧ:ММ:СС)
     private String clientIp;    // IP-адрес клиента при создании заявки
 
+    // Связанный слот времени (ленивая загрузка, жадно вычитывается через JOIN FETCH)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "slot_id")
+    private TimeSlot timeSlot;
+
     // Параметры расчета из формы калькулятора (не сохраняются как отдельные колонки БД)
     @Transient
     private BigDecimal shootTypeRate;
@@ -109,6 +114,9 @@ public class Booking {
 
     public String getClientIp() { return clientIp; }
     public void setClientIp(String clientIp) { this.clientIp = clientIp; }
+
+    public TimeSlot getTimeSlot() { return timeSlot; }
+    public void setTimeSlot(TimeSlot timeSlot) { this.timeSlot = timeSlot; }
 
     public BigDecimal getShootTypeRate() { return shootTypeRate; }
     public void setShootTypeRate(BigDecimal shootTypeRate) { this.shootTypeRate = shootTypeRate; }

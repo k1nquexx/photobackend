@@ -2,11 +2,14 @@ package com.example.photobackend;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.CacheControl;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
@@ -24,6 +27,17 @@ public class WebConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(adminAuthInterceptor)
                 .addPathPatterns("/api/**");
+    }
+
+    /**
+     * Кэширование статических изображений на клиенте и промежуточных CDN
+     * со сроком действия 30 дней (max-age=2592000).
+     */
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/img/**")
+                .addResourceLocations("classpath:/static/img/")
+                .setCacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic());
     }
 
     /**

@@ -1,10 +1,15 @@
 package com.example.photobackend;
 
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,6 +42,12 @@ class PhotobackendApplicationTests {
 
     @Autowired
     private RateLimiterService rateLimiterService;
+
+    @Autowired
+    private AdminPageController adminPageController;
+
+    @Autowired
+    private ClientIpResolver clientIpResolver;
 
     @Test
     void contextLoads() {
@@ -309,5 +320,75 @@ class PhotobackendApplicationTests {
         TimeSlotRequestDto invalidSlot = new TimeSlotRequestDto("2026-12-25", "18:00 - 15:00");
         ResponseEntity<?> resp = timeSlotController.addSlot(invalidSlot, token);
         assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
+    }
+
+    @Test
+    void testProtectedAdminPagesRequireAuthentication() {
+        MockHttpServletRequest unauthReq = new MockHttpServletRequest();
+        ResponseEntity<Resource> unauthPageResp = adminPageController.getAdminPage(unauthReq);
+        assertEquals(HttpStatus.OK, unauthPageResp.getStatusCode());
+        assertNotNull(unauthPageResp.getBody());
+        assertEquals("login.html", unauthPageResp.getBody().getFilename());
+
+        ResponseEntity<?> unauthJsResp = adminPageController.getAdminJs(unauthReq);
+        assertEquals(HttpStatus.FORBIDDEN, unauthJsResp.getStatusCode());
+
+        // Авторизованный запрос с кукой admin_token
+        String token = adminAuthService.login("testAdminPass123");
+        MockHttpServletRequest authReq = new MockHttpServletRequest();
+        authReq.setCookies(new Cookie("admin_token", token));
+
+        ResponseEntity<Resource> authPageResp = adminPageController.getAdminPage(authReq);
+        assertEquals(HttpStatus.OK, authPageResp.getStatusCode());
+        assertNotNull(authPageResp.getBody());
+        assertEquals("admin.html", authPageResp.getBody().getFilename());
+
+        ResponseEntity<?> authJsResp = adminPageController.getAdminJs(authReq);
+        assertEquals(HttpStatus.OK, authJsResp.getStatusCode());
+    }
+
+    @Test
+    void testAdminLoginSetsHttpOnlyCookie() {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setRemoteAddr("127.0.0.1");
+        MockHttpServletResponse res = new MockHttpServletResponse();
+
+        ResponseEntity<?> loginResp = bookingController.adminLogin("\"testAdminPass123\"", req, res);
+        assertEquals(HttpStatus.OK, loginResp.getStatusCode());
+
+        String setCookie = res.getHeader(HttpHeaders.SET_COOKIE);
+        assertNotNull(setCookie);
+        assertTrue(setCookie.contains("admin_token="));
+        assertTrue(setCookie.contains("HttpOnly"));
+        assertTrue(setCookie.contains("SameSite=Strict"));
+        assertTrue(setCookie.contains("Path=/"));
+    }
+
+    @Test
+    void testTrustedProxyIpSpoofingProtection() {
+        // Запрос через доверенный локальный сокет (127.0.0.1) доверяет X-Forwarded-For
+        MockHttpServletRequest trustedReq = new MockHttpServletRequest();
+        trustedReq.setRemoteAddr("127.0.0.1");
+        trustedReq.addHeader("X-Forwarded-For", "203.0.113.195, 10.0.0.1");
+        assertEquals("203.0.113.195", clientIpResolver.resolveClientIp(trustedReq));
+
+        // Прямой запрос от недоверенного внешнего сокета игнорирует поддельный X-Forwarded-For
+        MockHttpServletRequest untrustedReq = new MockHttpServletRequest();
+        untrustedReq.setRemoteAddr("198.51.100.5");
+        untrustedReq.addHeader("X-Forwarded-For", "1.2.3.4");
+        assertEquals("198.51.100.5", clientIpResolver.resolveClientIp(untrustedReq));
+    }
+
+    @Test
+    void testOverlappingSlotsDetection() {
+        String token = adminAuthService.login("testAdminPass123");
+        String date = "2026-11-20";
+
+        timeSlotController.addSlot(new TimeSlotRequestDto(date, "13:00 - 15:00"), token);
+
+        // Пересекающийся слот должен завершиться с ошибкой 409 Conflict
+        ResponseEntity<?> overlapResp = timeSlotController.addSlot(new TimeSlotRequestDto(date, "14:00 - 16:00"), token);
+        assertEquals(HttpStatus.CONFLICT, overlapResp.getStatusCode());
+        assertTrue(overlapResp.getBody().toString().contains("пересекается"));
     }
 }

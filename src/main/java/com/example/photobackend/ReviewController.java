@@ -1,5 +1,6 @@
 package com.example.photobackend;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -40,9 +41,11 @@ public class ReviewController {
     public ResponseEntity<?> getAllReviewsForAdmin(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Доступ запрещен: требуется токен администратора");
         }
@@ -51,6 +54,10 @@ public class ReviewController {
                 PageRequest.of(page, Math.min(size, 100))
         );
         return ResponseEntity.ok(reviewPage);
+    }
+
+    public ResponseEntity<?> getAllReviewsForAdmin(int page, int size, String token) {
+        return getAllReviewsForAdmin(page, size, token, null);
     }
 
     /**
@@ -73,14 +80,20 @@ public class ReviewController {
     @PatchMapping("/{id}/approve")
     public ResponseEntity<?> approveReview(
             @PathVariable Long id,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
 
         reviewService.approveReview(id);
         return ResponseEntity.ok("Отзыв одобрен");
+    }
+
+    public ResponseEntity<?> approveReview(Long id, String token) {
+        return approveReview(id, token, null);
     }
 
     /**
@@ -90,13 +103,26 @@ public class ReviewController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteReview(
             @PathVariable Long id,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
 
         reviewService.deleteReview(id);
         return ResponseEntity.ok("Отзыв удален");
+    }
+
+    public ResponseEntity<?> deleteReview(Long id, String token) {
+        return deleteReview(id, token, null);
+    }
+
+    private String resolveToken(HttpServletRequest request, String headerToken) {
+        if (headerToken != null && !headerToken.isBlank()) {
+            return headerToken.trim();
+        }
+        return request != null ? AdminAuthInterceptor.extractToken(request) : null;
     }
 }

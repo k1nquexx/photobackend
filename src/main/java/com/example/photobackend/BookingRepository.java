@@ -12,13 +12,16 @@ import java.util.Optional;
 @Repository
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
-    // Поиск по публичному UUID v4 (128 бит энтропии)
+    // Поиск по публичному UUID v4 (128 бит энтропии) с жадной подгрузкой слота (без N+1)
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"timeSlot"})
     Optional<Booking> findByPublicId(String publicId);
 
     // Поиск по секретному коду отслеживания
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"timeSlot"})
     Optional<Booking> findByTrackingToken(String trackingToken);
 
-    // Постраничная выборка для администратора
+    // Постраничная выборка для администратора с JOIN FETCH (устраняет проблему 100 лишних запросов N+1)
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"timeSlot"})
     Page<Booking> findAllByOrderByIdDesc(Pageable pageable);
 
     // Быстрые агрегатные запросы O(1) памяти

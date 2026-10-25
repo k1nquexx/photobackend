@@ -1,69 +1,33 @@
-// admin.js - Логика панели администратора
+// admin.js - Логика панели администратора (Защищенная административная зона)
 
 let allBookingsList = [];
-    let currentBookingPage = 0;
-    let totalBookingPages = 1;
+let currentBookingPage = 0;
+let totalBookingPages = 1;
 
-    let currentReviewPage = 0;
-    let totalReviewPages = 1;
+let currentReviewPage = 0;
+let totalReviewPages = 1;
 
-    // Проверка сохраненного токена при загрузке
-    if (sessionStorage.getItem('adminToken')) {
-        showAdminPanel();
-    }
+// Автоматическая инициализация панели при загрузке (доступ защищен сервером)
+document.addEventListener('DOMContentLoaded', () => {
+    refreshAll();
+});
 
-    async function checkAdminPassword() {
-        const password = document.getElementById('adminPassInput').value;
-        const errDiv = document.getElementById('loginError');
+async function logoutAdmin() {
+    try {
+        await fetch(`${API_BASE}/api/admin/logout`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: getAuthHeaders()
+        });
+    } catch (e) {}
 
-        try {
-            const res = await fetch(`${API_BASE}/api/admin/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(password)
-            });
+    window.location.reload();
+}
 
-            if (res.ok) {
-                const data = await res.json();
-                sessionStorage.setItem('adminToken', data.token);
-                errDiv.style.display = 'none';
-                showAdminPanel();
-            } else {
-                errDiv.style.display = 'block';
-            }
-        } catch (e) {
-            errDiv.style.display = 'block';
-        }
-    }
-
-    document.getElementById('adminPassInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') checkAdminPassword();
-    });
-
-    function showAdminPanel() {
-        document.getElementById('loginBox').classList.add('hidden');
-        document.getElementById('adminPanel').classList.remove('hidden');
-        refreshAll();
-    }
-
-    async function logoutAdmin() {
-        try {
-            await fetch(`${API_BASE}/api/admin/logout`, {
-                method: 'POST',
-                headers: getAuthHeaders()
-            });
-        } catch (e) {}
-
-        sessionStorage.removeItem('adminToken');
-        document.getElementById('adminPassInput').value = '';
-        document.getElementById('loginBox').classList.remove('hidden');
-        document.getElementById('adminPanel').classList.add('hidden');
-    }
-
-    function handleAuthError() {
-        alert('Сессия администратора истекла или доступ запрещен. Пожалуйста, войдите снова.');
-        logoutAdmin();
-    }
+function handleAuthError() {
+    alert('Сессия администратора истекла или доступ запрещен. Пожалуйста, войдите снова.');
+    window.location.reload();
+}
 
     function refreshAll() {
         loadStats();

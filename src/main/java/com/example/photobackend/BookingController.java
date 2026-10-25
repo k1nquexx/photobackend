@@ -1,12 +1,15 @@
 package com.example.photobackend;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -23,16 +26,22 @@ public class BookingController {
     private final PricingService pricingService;
     private final AdminAuthService adminAuthService;
     private final RateLimiterService rateLimiterService;
+    private final ClientIpResolver clientIpResolver;
+    private final AppConfigProperties appConfigProperties;
 
     @Autowired
     public BookingController(BookingService bookingService,
                              PricingService pricingService,
                              AdminAuthService adminAuthService,
-                             RateLimiterService rateLimiterService) {
+                             RateLimiterService rateLimiterService,
+                             ClientIpResolver clientIpResolver,
+                             AppConfigProperties appConfigProperties) {
         this.bookingService = bookingService;
         this.pricingService = pricingService;
         this.adminAuthService = adminAuthService;
         this.rateLimiterService = rateLimiterService;
+        this.clientIpResolver = clientIpResolver;
+        this.appConfigProperties = appConfigProperties;
     }
 
     // --- ПУБЛИЧНЫЕ ЭНДПОИНТЫ ДЛЯ ЦЕН И КАЛЬКУЛЯТОРА ---
@@ -59,8 +68,10 @@ public class BookingController {
     // --- ВХОД И ВЫХОД АДМИНИСТРАТОРА С ТРОТТЛИНГОМ ---
 
     @PostMapping("/admin/login")
-    public ResponseEntity<?> adminLogin(@RequestBody String password, HttpServletRequest request) {
-        String clientIp = getClientIp(request);
+    public ResponseEntity<?> adminLogin(@RequestBody String password,
+                                        HttpServletRequest request,
+                                        HttpServletResponse response) {
+        String clientIp = clientIpResolver.resolveClientIp(request);
         if (!rateLimiterService.tryAcquire("login:" + clientIp, 
                 SecurityConstants.LOGIN_MAX_REQUESTS, 
                 SecurityConstants.LOGIN_WINDOW_SECONDS)) {
@@ -71,6 +82,15 @@ public class BookingController {
         String cleanPass = password.replace("\"", "").trim();
         String token = adminAuthService.login(cleanPass);
         if (token != null) {
+            boolean secure = appConfigProperties != null && appConfigProperties.getSecurity().isCookieSecure();
+            ResponseCookie cookie = ResponseCookie.from("admin_token", token)
+                    .httpOnly(true)
+                    .secure(secure)
+                    .sameSite("Strict")
+                    .path("/")
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
             Map<String, String> resp = new HashMap<>();
             resp.put("token", token);
             return ResponseEntity.ok(resp);
@@ -78,21 +98,50 @@ public class BookingController {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Неверный пароль администратора");
     }
 
+    public ResponseEntity<?> adminLogin(String password, HttpServletRequest request) {
+        return adminLogin(password, request, null);
+    }
+
     @AdminOnly
     @PostMapping("/admin/logout")
-    public ResponseEntity<String> adminLogout(@RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
-        if (!adminAuthService.isValid(token)) {
+    public ResponseEntity<String> adminLogout(
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
-        adminAuthService.logout(token);
+
+        if (activeToken != null) {
+            adminAuthService.logout(activeToken);
+        }
+
+        if (response != null) {
+            boolean secure = appConfigProperties != null && appConfigProperties.getSecurity().isCookieSecure();
+            ResponseCookie cookie = ResponseCookie.from("admin_token", "")
+                    .httpOnly(true)
+                    .secure(secure)
+                    .sameSite("Strict")
+                    .path("/")
+                    .maxAge(0)
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        }
+
         return ResponseEntity.ok("Сессия завершена");
+    }
+
+    public ResponseEntity<String> adminLogout(String token) {
+        return adminLogout(token, null, null);
     }
 
     // --- СОЗДАНИЕ ЗАЯВКИ С ВАЛИДАЦИЕЙ DTO ---
 
     @PostMapping("/booking")
     public ResponseEntity<Map<String, Object>> createBooking(@Valid @RequestBody BookingCreateRequest req, HttpServletRequest request) {
-        String clientIp = getClientIp(request);
+        String clientIp = clientIpResolver.resolveClientIp(request);
         Map<String, Object> response = bookingService.createBooking(req, clientIp);
         return ResponseEntity.ok(response);
     }
@@ -104,7 +153,7 @@ public class BookingController {
                                          @RequestParam(required = false) String orderId,
                                          @RequestParam(required = false) String phone,
                                          HttpServletRequest request) {
-        String clientIp = getClientIp(request);
+        String clientIp = clientIpResolver.resolveClientIp(request);
         try {
             BookingResponseDto response = bookingService.checkStatus(token, orderId, phone, clientIp);
             return ResponseEntity.ok(response);
@@ -124,9 +173,11 @@ public class BookingController {
     public ResponseEntity<?> getAllBookings(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Доступ запрещен: требуется токен администратора");
         }
@@ -137,10 +188,18 @@ public class BookingController {
         return ResponseEntity.ok(bookingPage);
     }
 
+    public ResponseEntity<?> getAllBookings(int page, int size, String token) {
+        return getAllBookings(page, size, token, null);
+    }
+
     @AdminOnly
     @GetMapping("/stats")
-    public ResponseEntity<?> getStats(@RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
-        if (!adminAuthService.isValid(token)) {
+    public ResponseEntity<?> getStats(
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
+
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Доступ запрещен: требуется токен администратора");
         }
@@ -148,14 +207,20 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.getStats());
     }
 
+    public ResponseEntity<?> getStats(String token) {
+        return getStats(token, null);
+    }
+
     @AdminOnly
     @PatchMapping("/booking/{id}/status")
     public ResponseEntity<?> updateStatus(
             @PathVariable String id,
             @RequestBody String newStatus,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
 
@@ -167,8 +232,12 @@ public class BookingController {
         }
     }
 
+    public ResponseEntity<?> updateStatus(String id, String newStatus, String token) {
+        return updateStatus(id, newStatus, token, null);
+    }
+
     public ResponseEntity<?> updateStatus(Long id, String newStatus, String token) {
-        return updateStatus(String.valueOf(id), newStatus, token);
+        return updateStatus(String.valueOf(id), newStatus, token, null);
     }
 
     @AdminOnly
@@ -176,9 +245,11 @@ public class BookingController {
     public ResponseEntity<?> updateDetails(
             @PathVariable String id,
             @RequestBody String details,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
 
@@ -190,8 +261,12 @@ public class BookingController {
         }
     }
 
+    public ResponseEntity<?> updateDetails(String id, String details, String token) {
+        return updateDetails(id, details, token, null);
+    }
+
     public ResponseEntity<?> updateDetails(Long id, String details, String token) {
-        return updateDetails(String.valueOf(id), details, token);
+        return updateDetails(String.valueOf(id), details, token, null);
     }
 
     @AdminOnly
@@ -199,9 +274,11 @@ public class BookingController {
     public ResponseEntity<?> editBooking(
             @PathVariable String id,
             @Valid @RequestBody BookingEditRequestDto updated,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
 
@@ -213,8 +290,12 @@ public class BookingController {
         }
     }
 
+    public ResponseEntity<?> editBooking(String id, BookingEditRequestDto updated, String token) {
+        return editBooking(id, updated, token, null);
+    }
+
     public ResponseEntity<?> editBooking(Long id, BookingEditRequestDto updated, String token) {
-        return editBooking(String.valueOf(id), updated, token);
+        return editBooking(String.valueOf(id), updated, token, null);
     }
 
     @AdminOnly
@@ -222,9 +303,11 @@ public class BookingController {
     public ResponseEntity<?> updateDownloadUrl(
             @PathVariable String id,
             @RequestBody String url,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
 
@@ -238,17 +321,23 @@ public class BookingController {
         }
     }
 
+    public ResponseEntity<?> updateDownloadUrl(String id, String url, String token) {
+        return updateDownloadUrl(id, url, token, null);
+    }
+
     public ResponseEntity<?> updateDownloadUrl(Long id, String url, String token) {
-        return updateDownloadUrl(String.valueOf(id), url, token);
+        return updateDownloadUrl(String.valueOf(id), url, token, null);
     }
 
     @AdminOnly
     @DeleteMapping("/booking/{id}")
     public ResponseEntity<?> deleteBooking(
             @PathVariable String id,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Доступ запрещен");
         }
 
@@ -260,12 +349,18 @@ public class BookingController {
         }
     }
 
-    public ResponseEntity<?> deleteBooking(Long id, String token) {
-        return deleteBooking(String.valueOf(id), token);
+    public ResponseEntity<?> deleteBooking(String id, String token) {
+        return deleteBooking(id, token, null);
     }
 
-    private String getClientIp(HttpServletRequest request) {
-        if (request == null) return "unknown";
-        return request.getRemoteAddr() != null ? request.getRemoteAddr() : "unknown";
+    public ResponseEntity<?> deleteBooking(Long id, String token) {
+        return deleteBooking(String.valueOf(id), token, null);
+    }
+
+    private String resolveToken(HttpServletRequest request, String headerToken) {
+        if (headerToken != null && !headerToken.isBlank()) {
+            return headerToken.trim();
+        }
+        return request != null ? AdminAuthInterceptor.extractToken(request) : null;
     }
 }

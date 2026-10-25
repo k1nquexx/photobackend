@@ -40,6 +40,8 @@ public class AppConfigProperties {
         private long loginWindowSeconds = 60;
         private int statusMaxRequests = 10;
         private long statusWindowSeconds = 60;
+        private boolean cookieSecure = false;
+        private List<String> trustedProxies = List.of("127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "localhost");
 
         public long getTokenTtlSeconds() { return tokenTtlSeconds; }
         public void setTokenTtlSeconds(long tokenTtlSeconds) { this.tokenTtlSeconds = tokenTtlSeconds; }
@@ -55,6 +57,12 @@ public class AppConfigProperties {
 
         public long getStatusWindowSeconds() { return statusWindowSeconds; }
         public void setStatusWindowSeconds(long statusWindowSeconds) { this.statusWindowSeconds = statusWindowSeconds; }
+
+        public boolean isCookieSecure() { return cookieSecure; }
+        public void setCookieSecure(boolean cookieSecure) { this.cookieSecure = cookieSecure; }
+
+        public List<String> getTrustedProxies() { return trustedProxies; }
+        public void setTrustedProxies(List<String> trustedProxies) { this.trustedProxies = trustedProxies; }
     }
 
     public List<String> getCorsAllowedOrigins() { return corsAllowedOrigins; }

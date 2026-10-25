@@ -22,8 +22,8 @@ public class TimeSlot {
     @Column(nullable = false, length = 20)
     private String slotDate; // Дата: "2026-10-25"
 
-    @Column(nullable = false, length = 10)
-    private String slotTime; // Время: "14:00"
+    @Column(nullable = false, length = 50)
+    private String slotTime; // Время: "14:00" или "13:00 - 15:00"
 
     @Column(nullable = false)
     private boolean isBooked = false; // Занято или свободно

@@ -8,6 +8,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,6 +21,9 @@ import java.util.stream.Collectors;
 public class TimeSlotService {
 
     private static final Logger log = LoggerFactory.getLogger(TimeSlotService.class);
+
+    // Часовой пояс студии для строгой фильтрации прошедших слотов
+    public static final ZoneId STUDIO_TIMEZONE = ZoneId.of("Europe/Moscow");
 
     private final TimeSlotRepository timeSlotRepository;
 
@@ -26,15 +34,43 @@ public class TimeSlotService {
 
     /**
      * Выборка свободных слотов на конкретную дату (использует индекс).
+     * Отфильтровывает слоты в прошлом: если дата прошла или если время сегодняшнего слота уже наступило.
      */
     public List<TimeSlotResponseDto> getAvailableSlots(String date) {
         if (date == null || date.isBlank()) {
             throw new BadRequestException("Параметр date обязателен для получения свободных окон");
         }
-        return timeSlotRepository.findBySlotDateAndIsBookedFalseOrderBySlotTimeAsc(date.trim())
-                .stream()
-                .map(TimeSlotResponseDto::fromEntity)
-                .collect(Collectors.toList());
+
+        String cleanDate = date.trim();
+        ZonedDateTime nowStudio = ZonedDateTime.now(STUDIO_TIMEZONE);
+        LocalDate today = nowStudio.toLocalDate();
+        LocalTime nowTime = nowStudio.toLocalTime();
+
+        try {
+            LocalDate requestedDate = LocalDate.parse(cleanDate);
+            // Если запрашиваемая дата в прошлом — доступных окон нет
+            if (requestedDate.isBefore(today)) {
+                return List.of();
+            }
+
+            List<TimeSlot> slots = timeSlotRepository.findBySlotDateAndIsBookedFalseOrderBySlotTimeAsc(cleanDate);
+
+            // Если дата сегодняшняя — отфильтровываем окна, чье время старта уже наступило
+            if (requestedDate.isEqual(today)) {
+                slots = slots.stream()
+                        .filter(s -> {
+                            LocalTime startTime = extractStartTime(s.getSlotTime());
+                            return startTime != null && startTime.isAfter(nowTime);
+                        })
+                        .collect(Collectors.toList());
+            }
+
+            return slots.stream()
+                    .map(TimeSlotResponseDto::fromEntity)
+                    .collect(Collectors.toList());
+        } catch (DateTimeParseException e) {
+            throw new BadRequestException("Неверный формат даты. Требуется ГГГГ-ММ-ДД");
+        }
     }
 
     /**
@@ -70,7 +106,7 @@ public class TimeSlotService {
     }
 
     /**
-     * Создание нового слота с проверкой уникальности и корректности интервала времени.
+     * Создание нового слота с проверкой уникальности, хронологии интервала и пересечения (наложения).
      */
     @Transactional
     public TimeSlotResponseDto addSlot(TimeSlotRequestDto req) {
@@ -91,11 +127,24 @@ public class TimeSlotService {
             throw new BadRequestException("Время окна обязательно для заполнения");
         }
 
-        // Проверка: время начала слота не должно быть позже или равно времени окончания
-        validateTimeInterval(cleanTime, req.getStartTime(), req.getEndTime());
+        // Парсинг и валидация интервала нового слота (start < end)
+        LocalTime[] newInterval = parseSlotInterval(cleanTime, req.getStartTime(), req.getEndTime());
 
+        // Проверка точного совпадения
         if (timeSlotRepository.findBySlotDateAndSlotTime(cleanDate, cleanTime).isPresent()) {
             throw new BadRequestException("Окно на это время уже существует");
+        }
+
+        // Проверка наложения (пересечения) с уже созданными слотами на эту дату
+        List<TimeSlot> existingSlots = timeSlotRepository.findBySlotDateOrderBySlotTimeAsc(cleanDate);
+        for (TimeSlot ex : existingSlots) {
+            LocalTime[] exInterval = parseSlotInterval(ex.getSlotTime(), null, null);
+            // Интервалы [A, B] и [C, D] пересекаются, если A < D и C < B
+            boolean overlaps = newInterval[0].isBefore(exInterval[1]) && exInterval[0].isBefore(newInterval[1]);
+            if (overlaps) {
+                throw new SlotConflictException("Временной интервал (" + cleanTime + 
+                        ") пересекается с существующим окном (" + ex.getSlotTime() + ") на дату " + cleanDate);
+            }
         }
 
         TimeSlot slot = new TimeSlot(cleanDate, cleanTime);
@@ -104,7 +153,20 @@ public class TimeSlotService {
         return TimeSlotResponseDto.fromEntity(saved);
     }
 
-    private void validateTimeInterval(String timeStr, String explicitStart, String explicitEnd) {
+    public static LocalTime extractStartTime(String slotTime) {
+        if (slotTime == null || slotTime.isBlank()) return null;
+        String s = slotTime.trim();
+        if (s.contains("-")) {
+            s = s.split("-")[0].trim();
+        }
+        try {
+            return LocalTime.parse(s.length() == 4 ? "0" + s : s);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static LocalTime[] parseSlotInterval(String timeStr, String explicitStart, String explicitEnd) {
         String startStr = explicitStart;
         String endStr = explicitEnd;
 
@@ -116,19 +178,34 @@ public class TimeSlotService {
             }
         }
 
-        if (startStr != null && endStr != null && !startStr.isBlank() && !endStr.isBlank()) {
-            try {
-                String normalizedStart = startStr.length() == 4 ? "0" + startStr : startStr;
-                String normalizedEnd = endStr.length() == 4 ? "0" + endStr : endStr;
-                java.time.LocalTime start = java.time.LocalTime.parse(normalizedStart);
-                java.time.LocalTime end = java.time.LocalTime.parse(normalizedEnd);
-                if (!start.isBefore(end)) {
-                    throw new BadRequestException("Время начала слота (" + startStr + ") не может быть позже или равно времени окончания (" + endStr + ")");
-                }
-            } catch (java.time.format.DateTimeParseException e) {
-                throw new BadRequestException("Неверный формат времени: " + e.getParsedString());
-            }
+        if (startStr == null && timeStr != null) {
+            startStr = timeStr.trim();
         }
+
+        LocalTime start;
+        try {
+            start = LocalTime.parse(startStr.length() == 4 ? "0" + startStr : startStr);
+        } catch (Exception e) {
+            throw new BadRequestException("Неверный формат времени начала: " + startStr);
+        }
+
+        LocalTime end;
+        if (endStr != null && !endStr.isBlank()) {
+            try {
+                end = LocalTime.parse(endStr.length() == 4 ? "0" + endStr : endStr);
+            } catch (Exception e) {
+                throw new BadRequestException("Неверный формат времени окончания: " + endStr);
+            }
+        } else {
+            // Если длительность явно не указана, считаем стандартное часовое окно
+            end = start.plusHours(1);
+        }
+
+        if (!start.isBefore(end)) {
+            throw new BadRequestException("Время начала слота (" + start + ") не может быть позже или равно времени окончания (" + end + ")");
+        }
+
+        return new LocalTime[]{start, end};
     }
 
     /**

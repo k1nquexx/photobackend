@@ -1,5 +1,6 @@
 package com.example.photobackend;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -38,14 +39,20 @@ public class TimeSlotController {
     @GetMapping("/all")
     public ResponseEntity<?> getAllSlotsByDate(
             @RequestParam(required = false) String date,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Доступ запрещен: требуется токен администратора");
         }
 
         return ResponseEntity.ok(timeSlotService.getAllSlotsByDate(date));
+    }
+
+    public ResponseEntity<?> getAllSlotsByDate(String date, String token) {
+        return getAllSlotsByDate(date, token, null);
     }
 
     /**
@@ -55,9 +62,11 @@ public class TimeSlotController {
     @PostMapping
     public ResponseEntity<?> addSlot(
             @Valid @RequestBody TimeSlotRequestDto slotReq,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Доступ запрещен: требуется токен администратора");
         }
@@ -65,9 +74,15 @@ public class TimeSlotController {
         try {
             TimeSlotResponseDto created = timeSlotService.addSlot(slotReq);
             return ResponseEntity.ok(created);
+        } catch (SlotConflictException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
         } catch (BadRequestException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    public ResponseEntity<?> addSlot(TimeSlotRequestDto slotReq, String token) {
+        return addSlot(slotReq, token, null);
     }
 
     /**
@@ -77,14 +92,27 @@ public class TimeSlotController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteSlot(
             @PathVariable Long id,
-            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
+            @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token,
+            HttpServletRequest request) {
 
-        if (!adminAuthService.isValid(token)) {
+        String activeToken = resolveToken(request, token);
+        if (!adminAuthService.isValid(activeToken)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Доступ запрещен: требуется токен администратора");
         }
 
         timeSlotService.deleteSlot(id);
         return ResponseEntity.ok("Окно удалено");
+    }
+
+    public ResponseEntity<?> deleteSlot(Long id, String token) {
+        return deleteSlot(id, token, null);
+    }
+
+    private String resolveToken(HttpServletRequest request, String headerToken) {
+        if (headerToken != null && !headerToken.isBlank()) {
+            return headerToken.trim();
+        }
+        return request != null ? AdminAuthInterceptor.extractToken(request) : null;
     }
 }

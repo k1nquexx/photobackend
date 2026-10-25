@@ -5,10 +5,14 @@ const API_BASE = (window.location.protocol === 'file:' || (window.location.port 
     : '';
 
 function getAuthHeaders() {
-    return {
-        'Content-Type': 'application/json',
-        'X-Admin-Token': sessionStorage.getItem('adminToken') || ''
+    const headers = {
+        'Content-Type': 'application/json'
     };
+    const token = sessionStorage.getItem('adminToken');
+    if (token) {
+        headers['X-Admin-Token'] = token;
+    }
+    return headers;
 }
 
 // Защита от XSS (экранирование спецсимволов)

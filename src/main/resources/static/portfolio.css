@@ -469,9 +469,11 @@
 }
 
 .tag-chip.tag-anime:hover,
-.tag-chip.tag-anime.active {
+.tag-chip.tag-anime.active,
+.tag-chip.tag-anime.active-tag {
     background: #2b203c;
     border-color: #c4a7e7;
+    box-shadow: 0 0 8px rgba(196, 167, 231, 0.3);
 }
 
 .tag-chip.tag-location {
@@ -481,9 +483,11 @@
 }
 
 .tag-chip.tag-location:hover,
-.tag-chip.tag-location.active {
+.tag-chip.tag-location.active,
+.tag-chip.tag-location.active-tag {
     background: #1d3329;
     border-color: #75b798;
+    box-shadow: 0 0 8px rgba(117, 183, 152, 0.3);
 }
 
 .tag-chip.tag-style {
@@ -493,9 +497,11 @@
 }
 
 .tag-chip.tag-style:hover,
-.tag-chip.tag-style.active {
+.tag-chip.tag-style.active,
+.tag-chip.tag-style.active-tag {
     background: #362b16;
     border-color: #e6cc98;
+    box-shadow: 0 0 8px rgba(230, 204, 152, 0.3);
 }
 
 /* ==========================================

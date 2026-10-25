@@ -18,200 +18,81 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. Элементы фильтрации
+    // 2. Элементы фильтрации (Категории + теги)
     const filterBtns = document.querySelectorAll('.filter-btn');
-    const subfilterBtns = document.querySelectorAll('.subfilter-btn');
     const subcategoryBlocks = document.querySelectorAll('.subcategory-block');
     const noResults = document.getElementById('noResults');
 
-    const tagFilterAnime = document.getElementById('tagFilterAnime');
-    const tagFilterLocation = document.getElementById('tagFilterLocation');
-    const tagFilterStyle = document.getElementById('tagFilterStyle');
-    const resetTagsBtn = document.getElementById('resetTagsBtn');
-
     let currentCategory = 'all';
-    let currentSubcategory = 'all';
     let currentAnime = 'all';
     let currentLocation = 'all';
     let currentStyle = 'all';
 
-    // Заполнение выпадающих списков тегов уникальными значениями из страницы
-    function initTagFilters() {
-        const animeSet = new Set();
-        const locationSet = new Set();
-        const styleSet = new Set();
-
-        subcategoryBlocks.forEach(block => {
-            const anime = block.getAttribute('data-anime');
-            const location = block.getAttribute('data-location');
-            const style = block.getAttribute('data-style');
-
-            if (anime) animeSet.add(anime.trim());
-            if (location) locationSet.add(location.trim());
-            if (style) styleSet.add(style.trim());
-        });
-
-        populateSelect(tagFilterAnime, animeSet);
-        populateSelect(tagFilterLocation, locationSet);
-        populateSelect(tagFilterStyle, styleSet);
-    }
-
-    function populateSelect(selectElement, valueSet) {
-        if (!selectElement) return;
-        const sorted = Array.from(valueSet).sort((a, b) => a.localeCompare(b, 'ru'));
-        sorted.forEach(val => {
-            const opt = document.createElement('option');
-            opt.value = val;
-            opt.textContent = val;
-            selectElement.appendChild(opt);
-        });
-    }
-
-    // Применение комплексной фильтрации (категории + подкатегории + теги)
+    // Применение фильтрации (по 5 основным категориям и тегам)
     function applyFilters() {
         let visibleCount = 0;
 
         const filterCat = (currentCategory || 'all').toLowerCase().trim();
-        const filterSub = (currentSubcategory || 'all').toLowerCase().trim();
         const filterAnime = (currentAnime || 'all').toLowerCase().trim();
         const filterLocation = (currentLocation || 'all').toLowerCase().trim();
         const filterStyle = (currentStyle || 'all').toLowerCase().trim();
 
         subcategoryBlocks.forEach(block => {
             const blockCat = (block.getAttribute('data-category') || '').toLowerCase().trim();
-            const blockSub = (block.getAttribute('data-subcategory') || '').toLowerCase().trim();
             const blockAnime = (block.getAttribute('data-anime') || '').toLowerCase().trim();
             const blockLocation = (block.getAttribute('data-location') || '').toLowerCase().trim();
             const blockStyle = (block.getAttribute('data-style') || '').toLowerCase().trim();
 
-            // Если у карточки несколько категорий, фильтрация использует проверку вхождения (.includes())
+            // Проверка категории
             const matchesCat = (filterCat === 'all' || blockCat.includes(filterCat));
-            const matchesSub = (filterSub === 'all' || blockSub.includes(filterSub));
             const matchesAnime = (filterAnime === 'all' || blockAnime.includes(filterAnime));
             const matchesLocation = (filterLocation === 'all' || blockLocation.includes(filterLocation));
             const matchesStyle = (filterStyle === 'all' || blockStyle.includes(filterStyle));
 
-            const isVisible = matchesCat && matchesSub && matchesAnime && matchesLocation && matchesStyle;
+            const isVisible = matchesCat && matchesAnime && matchesLocation && matchesStyle;
             block.classList.toggle('hidden-group', !isVisible);
 
             if (isVisible) visibleCount++;
         });
-
-        // Управление кнопкой сброса тегов
-        const hasActiveTags = currentAnime !== 'all' || currentLocation !== 'all' || currentStyle !== 'all';
-        if (resetTagsBtn) {
-            resetTagsBtn.classList.toggle('hidden-reset', !hasActiveTags);
-        }
 
         if (noResults) {
             noResults.classList.toggle('visible', visibleCount === 0);
         }
     }
 
-    // Инициализируем опции в селектах
-    initTagFilters();
-
-    // Слушатели событий селектов тегов
-    if (tagFilterAnime) {
-        tagFilterAnime.addEventListener('change', (e) => {
-            currentAnime = e.target.value;
-            applyFilters();
-        });
-    }
-
-    if (tagFilterLocation) {
-        tagFilterLocation.addEventListener('change', (e) => {
-            currentLocation = e.target.value;
-            applyFilters();
-        });
-    }
-
-    if (tagFilterStyle) {
-        tagFilterStyle.addEventListener('change', (e) => {
-            currentStyle = e.target.value;
-            applyFilters();
-        });
-    }
-
-    // Сброс тегов
-    if (resetTagsBtn) {
-        resetTagsBtn.addEventListener('click', () => {
-            currentAnime = 'all';
-            currentLocation = 'all';
-            currentStyle = 'all';
-            if (tagFilterAnime) tagFilterAnime.value = 'all';
-            if (tagFilterLocation) tagFilterLocation.value = 'all';
-            if (tagFilterStyle) tagFilterStyle.value = 'all';
-            applyFilters();
-        });
-    }
-
-    // Клик по кликабельным бейджикам тегов на карточках
-    document.querySelectorAll('.tag-chip').forEach(chip => {
-        chip.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const type = chip.getAttribute('data-tag-type');
-            const val = chip.getAttribute('data-tag-val');
-
-            if (type === 'anime') {
-                currentAnime = val;
-                if (tagFilterAnime) tagFilterAnime.value = val;
-            } else if (type === 'location') {
-                currentLocation = val;
-                if (tagFilterLocation) tagFilterLocation.value = val;
-            } else if (type === 'style') {
-                currentStyle = val;
-                if (tagFilterStyle) tagFilterStyle.value = val;
-            }
-
-            applyFilters();
-
-            // Плавный скролл к панели фильтрации
-            const header = document.querySelector('.portfolio-header');
-            if (header) {
-                header.scrollIntoView({ behavior: 'smooth' });
-            }
-        });
-    });
-
-    // Клик по основной категории
+    // Клик по категории: [ Все ], [ Студия & Арт ], [ Улица & Локации ], [ Лайфстайл ], [ Фестивали ]
     filterBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             filterBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Приводим data-filter к нижнему регистру
             currentCategory = (btn.getAttribute('data-filter') || 'all').toLowerCase().trim();
-            currentSubcategory = 'all';
-
-            // Обновляем видимость подкатегорий
-            subfilterBtns.forEach(subBtn => {
-                const parentCat = (subBtn.getAttribute('data-parent') || '').toLowerCase().trim();
-                subBtn.classList.remove('active');
-
-                const subVal = (subBtn.getAttribute('data-subfilter') || '').toLowerCase().trim();
-                if (subVal === 'all') {
-                    subBtn.classList.add('active');
-                    subBtn.classList.remove('hidden-subfilter');
-                } else if (currentCategory === 'all' || parentCat.includes(currentCategory) || currentCategory.includes(parentCat)) {
-                    subBtn.classList.remove('hidden-subfilter');
-                } else {
-                    subBtn.classList.add('hidden-subfilter');
-                }
-            });
+            // Сбрасываем выбранные теги при переключении категории
+            currentAnime = 'all';
+            currentLocation = 'all';
+            currentStyle = 'all';
+            document.querySelectorAll('.tag-chip').forEach(c => c.classList.remove('active-tag'));
 
             applyFilters();
         });
     });
 
-    // Клик по подкатегории
-    subfilterBtns.forEach(subBtn => {
-        subBtn.addEventListener('click', () => {
-            subfilterBtns.forEach(b => b.classList.remove('active'));
-            subBtn.classList.add('active');
+    // Клик по тегам на самих карточках
+    document.querySelectorAll('.tag-chip').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const type = chip.getAttribute('data-tag-type');
+            const val = (chip.getAttribute('data-tag-val') || '').toLowerCase().trim();
 
-            // Приводим data-subfilter к нижнему регистру
-            currentSubcategory = (subBtn.getAttribute('data-subfilter') || 'all').toLowerCase().trim();
+            if (type === 'anime') {
+                currentAnime = (currentAnime === val) ? 'all' : val;
+            } else if (type === 'location') {
+                currentLocation = (currentLocation === val) ? 'all' : val;
+            } else if (type === 'style') {
+                currentStyle = (currentStyle === val) ? 'all' : val;
+            }
+
+            chip.classList.toggle('active-tag', (currentAnime === val || currentLocation === val || currentStyle === val) && val !== 'all');
             applyFilters();
         });
     });

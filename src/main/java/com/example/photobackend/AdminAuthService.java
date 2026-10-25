@@ -111,7 +111,7 @@ public class AdminAuthService {
             return false;
         }
 
-        if (revokedTokens.contains(token)) {
+        if (isRevokedConstantTime(token)) {
             return false;
         }
 
@@ -120,7 +120,8 @@ public class AdminAuthService {
         String sigPart = token.substring(dotIdx + 1);
 
         String expectedSig = sign(payloadPart);
-        if (!MessageDigest.isEqual(expectedSig.getBytes(StandardCharsets.UTF_8), sigPart.getBytes(StandardCharsets.UTF_8))) {
+        // Защита от Timing Attacks: побайтовое сравнение фиксированных хэшей за постоянное время
+        if (!constantTimeEquals(expectedSig, sigPart)) {
             return false;
         }
 
@@ -134,6 +135,41 @@ public class AdminAuthService {
         } catch (IllegalArgumentException e) {
             log.debug("Невалидный payload токена: {}", e.getMessage());
             return false;
+        }
+    }
+
+    private boolean isRevokedConstantTime(String token) {
+        boolean revoked = false;
+        for (String r : revokedTokens) {
+            if (constantTimeEquals(r, token)) {
+                revoked = true;
+            }
+        }
+        return revoked;
+    }
+
+    /**
+     * Сравнение двух строк за строго постоянное время через SHA-256 дайджесты фиксированной длины.
+     * Полностью исключает утечку информации по задержкам ответа при подборе токена (Timing Attack).
+     */
+    public static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hashA = md.digest(a.getBytes(StandardCharsets.UTF_8));
+            byte[] hashB = md.digest(b.getBytes(StandardCharsets.UTF_8));
+            return MessageDigest.isEqual(hashA, hashB);
+        } catch (NoSuchAlgorithmException e) {
+            byte[] bytesA = a.getBytes(StandardCharsets.UTF_8);
+            byte[] bytesB = b.getBytes(StandardCharsets.UTF_8);
+            if (bytesA.length != bytesB.length) return false;
+            int result = 0;
+            for (int i = 0; i < bytesA.length; i++) {
+                result |= bytesA[i] ^ bytesB[i];
+            }
+            return result == 0;
         }
     }
 

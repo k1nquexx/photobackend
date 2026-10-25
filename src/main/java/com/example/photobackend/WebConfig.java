@@ -27,15 +27,32 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     /**
-     * Ограничение CORS источников исключительно доверенными доменами сайта из конфигурации.
+     * Ограничение CORS исключительно доверенными доменами сайта из конфигурации.
+     * Запрещает подстановочный символ '*' при передаче учетных данных (Credentials).
      */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        List<String> allowedOrigins = appConfigProperties != null ? appConfigProperties.getCorsAllowedOrigins() : List.of("http://localhost:8080");
+        List<String> rawOrigins = appConfigProperties != null ? appConfigProperties.getCorsAllowedOrigins() : null;
+        List<String> safeOrigins;
+
+        if (rawOrigins == null || rawOrigins.isEmpty()) {
+            safeOrigins = List.of("http://localhost:8080", "https://photographer.ru");
+        } else {
+            safeOrigins = rawOrigins.stream()
+                    .map(String::trim)
+                    .filter(origin -> !origin.isEmpty() && !"*".equals(origin))
+                    .toList();
+            if (safeOrigins.isEmpty()) {
+                safeOrigins = List.of("http://localhost:8080", "https://photographer.ru");
+            }
+        }
+
         registry.addMapping("/api/**")
-                .allowedOrigins(allowedOrigins.toArray(new String[0]))
+                .allowedOrigins(safeOrigins.toArray(new String[0]))
                 .allowedMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(true);
+                .allowedHeaders("Authorization", "Content-Type", "Accept", SecurityConstants.AUTH_HEADER_NAME)
+                .exposedHeaders(SecurityConstants.AUTH_HEADER_NAME)
+                .allowCredentials(true)
+                .maxAge(3600);
     }
 }

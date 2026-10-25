@@ -234,7 +234,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const img = photoItem.querySelector('img');
         if (!img) return;
 
-        lightboxImg.src = img.src;
+        // Безопасная валидация протокола источника изображения (предотвращение javascript: URI)
+        const imgSrc = img.getAttribute('src') || img.src || '';
+        if (imgSrc.startsWith('javascript:') || imgSrc.startsWith('vbscript:')) {
+            lightboxImg.src = 'img/placeholder.webp';
+        } else {
+            lightboxImg.src = imgSrc;
+        }
         lightboxImg.alt = img.alt || '';
 
         // Текст оверлея или подписи для лайтбокса

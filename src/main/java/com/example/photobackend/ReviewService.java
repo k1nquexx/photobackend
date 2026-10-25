@@ -55,16 +55,17 @@ public class ReviewService {
         String name = req.getAuthorName() != null ? req.getAuthorName().trim() : "";
         String comment = req.getComment() != null ? req.getComment().trim() : "";
 
-        if (name.isEmpty() || name.length() > 100) {
-            throw new BadRequestException("Имя автора должно содержать от 1 до 100 символов");
+        if (name.length() < 2 || name.length() > 100) {
+            throw new BadRequestException("Имя автора должно содержать от 2 до 100 символов");
         }
-        if (comment.isEmpty() || comment.length() > 2000) {
-            throw new BadRequestException("Текст отзыва должен содержать от 1 до 2000 символов");
+        if (comment.length() < 3 || comment.length() > 2000) {
+            throw new BadRequestException("Текст отзыва должен содержать от 3 до 2000 символов");
+        }
+        if (req.getRating() == null || req.getRating() < 1 || req.getRating() > 5) {
+            throw new BadRequestException("Оценка должна быть в диапазоне от 1 до 5");
         }
 
-        int rating = req.getRating() != null ? req.getRating() : 5;
-        if (rating < 1) rating = 1;
-        if (rating > 5) rating = 5;
+        int rating = req.getRating();
 
         Review review = new Review();
         review.setId(null); // Защита от перезаписи через merge

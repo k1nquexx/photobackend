@@ -30,6 +30,9 @@ class PhotobackendApplicationTests {
     private ReviewController reviewController;
 
     @Autowired
+    private TimeSlotController timeSlotController;
+
+    @Autowired
     private ReviewRepository reviewRepository;
 
     @Autowired
@@ -288,5 +291,23 @@ class PhotobackendApplicationTests {
         rateLimiterService.tryAcquire("test-evict-key", 5, 1);
         rateLimiterService.evictExpiredEntries();
         adminAuthService.evictExpiredTokens();
+    }
+
+    @Test
+    void testConstantTimeTokenComparison() {
+        assertTrue(AdminAuthService.constantTimeEquals("token123", "token123"));
+        assertFalse(AdminAuthService.constantTimeEquals("token123", "token124"));
+        assertFalse(AdminAuthService.constantTimeEquals("token123", "token1234"));
+        assertFalse(AdminAuthService.constantTimeEquals(null, "token123"));
+        assertFalse(AdminAuthService.constantTimeEquals("token123", null));
+        assertFalse(AdminAuthService.constantTimeEquals(null, null));
+    }
+
+    @Test
+    void testTimeSlotStartBeforeEndValidation() {
+        String token = adminAuthService.login("testAdminPass123");
+        TimeSlotRequestDto invalidSlot = new TimeSlotRequestDto("2026-12-25", "18:00 - 15:00");
+        ResponseEntity<?> resp = timeSlotController.addSlot(invalidSlot, token);
+        assertEquals(HttpStatus.BAD_REQUEST, resp.getStatusCode());
     }
 }

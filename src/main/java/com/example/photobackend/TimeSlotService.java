@@ -70,12 +70,29 @@ public class TimeSlotService {
     }
 
     /**
-     * Создание нового слота с проверкой уникальности.
+     * Создание нового слота с проверкой уникальности и корректности интервала времени.
      */
     @Transactional
     public TimeSlotResponseDto addSlot(TimeSlotRequestDto req) {
+        if (req == null) {
+            throw new BadRequestException("Данные окна не переданы");
+        }
+        if (req.getSlotDate() == null || req.getSlotDate().isBlank()) {
+            throw new BadRequestException("Дата окна обязательна для заполнения");
+        }
+
         String cleanDate = req.getSlotDate().trim();
-        String cleanTime = req.getSlotTime().trim();
+        if (!cleanDate.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
+            throw new BadRequestException("Неверный формат даты. Требуется ГГГГ-ММ-ДД");
+        }
+
+        String cleanTime = req.getResolvedSlotTime();
+        if (cleanTime == null || cleanTime.isBlank()) {
+            throw new BadRequestException("Время окна обязательно для заполнения");
+        }
+
+        // Проверка: время начала слота не должно быть позже или равно времени окончания
+        validateTimeInterval(cleanTime, req.getStartTime(), req.getEndTime());
 
         if (timeSlotRepository.findBySlotDateAndSlotTime(cleanDate, cleanTime).isPresent()) {
             throw new BadRequestException("Окно на это время уже существует");
@@ -85,6 +102,33 @@ public class TimeSlotService {
         TimeSlot saved = timeSlotRepository.save(slot);
         log.info("Добавлен новый слот расписания: {} в {}", cleanDate, cleanTime);
         return TimeSlotResponseDto.fromEntity(saved);
+    }
+
+    private void validateTimeInterval(String timeStr, String explicitStart, String explicitEnd) {
+        String startStr = explicitStart;
+        String endStr = explicitEnd;
+
+        if ((startStr == null || endStr == null) && timeStr != null && timeStr.contains("-")) {
+            String[] parts = timeStr.split("-");
+            if (parts.length == 2) {
+                startStr = parts[0].trim();
+                endStr = parts[1].trim();
+            }
+        }
+
+        if (startStr != null && endStr != null && !startStr.isBlank() && !endStr.isBlank()) {
+            try {
+                String normalizedStart = startStr.length() == 4 ? "0" + startStr : startStr;
+                String normalizedEnd = endStr.length() == 4 ? "0" + endStr : endStr;
+                java.time.LocalTime start = java.time.LocalTime.parse(normalizedStart);
+                java.time.LocalTime end = java.time.LocalTime.parse(normalizedEnd);
+                if (!start.isBefore(end)) {
+                    throw new BadRequestException("Время начала слота (" + startStr + ") не может быть позже или равно времени окончания (" + endStr + ")");
+                }
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new BadRequestException("Неверный формат времени: " + e.getParsedString());
+            }
+        }
     }
 
     /**

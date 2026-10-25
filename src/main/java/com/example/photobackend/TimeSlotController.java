@@ -62,8 +62,12 @@ public class TimeSlotController {
                     .body("Доступ запрещен: требуется токен администратора");
         }
 
-        TimeSlotResponseDto created = timeSlotService.addSlot(slotReq);
-        return ResponseEntity.ok(created);
+        try {
+            TimeSlotResponseDto created = timeSlotService.addSlot(slotReq);
+            return ResponseEntity.ok(created);
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     /**

@@ -79,6 +79,18 @@ class TimeSlotServiceUnitTest {
     }
 
     @Test
+    void addSlot_StartTimeAfterEndTime_ThrowsBadRequestException() {
+        TimeSlotRequestDto req1 = new TimeSlotRequestDto("2026-11-25", "16:00 - 14:00");
+        assertThrows(BadRequestException.class, () -> timeSlotService.addSlot(req1));
+
+        TimeSlotRequestDto req2 = new TimeSlotRequestDto("2026-11-25", "15:00", "13:00");
+        assertThrows(BadRequestException.class, () -> timeSlotService.addSlot(req2));
+
+        TimeSlotRequestDto req3 = new TimeSlotRequestDto("2026-11-25", "14:00 - 14:00");
+        assertThrows(BadRequestException.class, () -> timeSlotService.addSlot(req3));
+    }
+
+    @Test
     void deleteSlot_Success() {
         when(timeSlotRepository.existsById(42L)).thenReturn(true);
         timeSlotService.deleteSlot(42L);

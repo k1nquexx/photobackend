@@ -68,6 +68,25 @@ class ReviewServiceUnitTest {
     }
 
     @Test
+    void createReview_InvalidInputs_ThrowsBadRequestException() {
+        // Пустой автор
+        ReviewCreateRequest emptyName = new ReviewCreateRequest("", 5, "Хороший отзыв");
+        assertThrows(BadRequestException.class, () -> reviewService.createReview(emptyName));
+
+        // Слишком короткий автор
+        ReviewCreateRequest shortName = new ReviewCreateRequest("A", 5, "Хороший отзыв");
+        assertThrows(BadRequestException.class, () -> reviewService.createReview(shortName));
+
+        // Пустой комментарий
+        ReviewCreateRequest emptyComment = new ReviewCreateRequest("Иван", 5, "   ");
+        assertThrows(BadRequestException.class, () -> reviewService.createReview(emptyComment));
+
+        // Невалидный рейтинг
+        ReviewCreateRequest invalidRating = new ReviewCreateRequest("Иван", 10, "Хороший отзыв");
+        assertThrows(BadRequestException.class, () -> reviewService.createReview(invalidRating));
+    }
+
+    @Test
     void approveReview_SetsApprovedTrue() {
         Review r = new Review("Петр", 4, "Хорошая работа");
         r.setId(15L);

@@ -26,24 +26,26 @@
 
 <!-- Заголовок портфолио -->
 <header class="portfolio-header">
-    <div class="container">
+    <div class="container portfolio-container">
         <h1 class="portfolio-title">Портфолио</h1>
         <p class="portfolio-subtitle">Избранные фотоработы и визуальные истории съемок</p>
 
         <!-- Аккуратная строка фильтров на 5 кнопок -->
-        <div class="filter-container">
-            <button class="filter-btn active" data-filter="all">Все</button>
-            <button class="filter-btn" data-filter="studio">Студия &amp; Арт</button>
-            <button class="filter-btn" data-filter="street">Улица &amp; Локации</button>
-            <button class="filter-btn" data-filter="lifestyle">Лайфстайл</button>
-            <button class="filter-btn" data-filter="festivals">Фестивали</button>
+        <div class="filter-bar-wrapper">
+            <div class="filter-container">
+                <button class="filter-btn active" data-filter="all">Все</button>
+                <button class="filter-btn" data-filter="studio">Студия &amp; Арт</button>
+                <button class="filter-btn" data-filter="street">Улица &amp; Локации</button>
+                <button class="filter-btn" data-filter="lifestyle">Лайфстайл</button>
+                <button class="filter-btn" data-filter="festivals">Фестивали</button>
+            </div>
         </div>
     </div>
 </header>
 
 <!-- Сетка портфолио с блоками: 1 Большое заглавное фото + 2 под ним -->
 <section class="section pt-0 portfolio-main-section">
-    <div class="container">
+    <div class="container portfolio-container">
         <div class="portfolio-groups" id="galleryContainer">
 
             <!-- 1. Chainsaw Man (Улица & Локации) -->
@@ -118,13 +120,12 @@
                         </div>
                     </div>
                 </div>
-                <!-- Заглавное большое фото -->
-                <div class="gallery-item gallery-item-hero">
-                    <img src="img/conva_03.webp" alt="Фестивальный косплей" loading="lazy">
-                    <div class="portfolio-overlay">CON-Версия — Репортаж</div>
-                </div>
-                <!-- Две фотографии под ним -->
-                <div class="subcategory-photos-grid">
+                <!-- Три фестивальных кадра в едином ряду (без растягивания вертикального фото на весь экран) -->
+                <div class="subcategory-photos-grid photos-grid-3">
+                    <div class="gallery-item">
+                        <img src="img/conva_03.webp" alt="Фестивальный косплей" loading="lazy">
+                        <div class="portfolio-overlay">CON-Версия — Репортаж</div>
+                    </div>
                     <div class="gallery-item">
                         <img src="img/conva_02.webp" alt="Фестивальный сет — Образ" loading="lazy">
                         <div class="portfolio-overlay">Фестивальный сет — Образ</div>
@@ -358,13 +359,12 @@
                         </div>
                     </div>
                 </div>
-                <!-- Заглавное большое фото -->
-                <div class="gallery-item gallery-item-hero">
-                    <img src="img/school_01.webp" alt="School Uniform" loading="lazy">
-                    <div class="portfolio-overlay">School Uniform — Лайфстайл</div>
-                </div>
-                <!-- Две фотографии под ним -->
-                <div class="subcategory-photos-grid">
+                <!-- Три вертикальных кадра сета в едином гармоничном ряду -->
+                <div class="subcategory-photos-grid photos-grid-3">
+                    <div class="gallery-item">
+                        <img src="img/school_01.webp" alt="School Uniform" loading="lazy">
+                        <div class="portfolio-overlay">School Uniform — Лайфстайл</div>
+                    </div>
                     <div class="gallery-item">
                         <img src="img/school_02.webp" alt="School Uniform — Лайфстайл" loading="lazy">
                         <div class="portfolio-overlay">School Uniform — Лайфстайл</div>

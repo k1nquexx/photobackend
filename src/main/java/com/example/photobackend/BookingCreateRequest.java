@@ -1,12 +1,15 @@
 package com.example.photobackend;
 
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import java.math.BigDecimal;
+
 /**
- * DTO для создания заявки на съемку.
- * Предотвращает уязвимость Mass Assignment: клиент физически не может передать поля
- * status, downloadUrl или подделать totalPrice.
+ * DTO для создания заявки на съемку с валидацией полей.
  */
 public class BookingCreateRequest {
 
@@ -23,8 +26,14 @@ public class BookingCreateRequest {
 
     private String bookingDate;
     private String bookingTime;
-    private Integer shootTypeRate;
+
+    @DecimalMin(value = "0.0", inclusive = true, message = "Тариф не может быть отрицательным")
+    private BigDecimal shootTypeRate;
+
+    @Min(value = 1, message = "Минимум 1 час съемки")
+    @Max(value = 24, message = "Максимум 24 часа съемки")
     private Integer hours;
+
     private boolean addonExpress;
     private boolean addonStudio;
     private String promoCode;
@@ -46,8 +55,11 @@ public class BookingCreateRequest {
     public String getBookingTime() { return bookingTime; }
     public void setBookingTime(String bookingTime) { this.bookingTime = bookingTime; }
 
-    public Integer getShootTypeRate() { return shootTypeRate; }
-    public void setShootTypeRate(Integer shootTypeRate) { this.shootTypeRate = shootTypeRate; }
+    public BigDecimal getShootTypeRate() { return shootTypeRate; }
+    public void setShootTypeRate(BigDecimal shootTypeRate) { this.shootTypeRate = shootTypeRate; }
+    public void setShootTypeRate(Integer shootTypeRate) { 
+        this.shootTypeRate = shootTypeRate != null ? BigDecimal.valueOf(shootTypeRate) : null; 
+    }
 
     public Integer getHours() { return hours; }
     public void setHours(Integer hours) { this.hours = hours; }

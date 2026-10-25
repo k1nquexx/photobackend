@@ -98,14 +98,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 2. Система свободных окон записи
     // ==========================================
+    function setContainerMessage(el, text, color = '#aaa') {
+        el.replaceChildren();
+        const span = document.createElement('span');
+        span.style.color = color;
+        span.style.fontSize = '14px';
+        span.textContent = text;
+        el.appendChild(span);
+    }
+
     async function loadAvailableTimeSlots(date) {
         if (!slotsButtonsContainer) return;
-        slotsButtonsContainer.innerHTML = '<span style="color: #aaa; font-size:14px;">Загрузка свободных окон...</span>';
+        setContainerMessage(slotsButtonsContainer, 'Загрузка свободных окон...', '#aaa');
         if (noSlotsMsg) noSlotsMsg.style.display = 'none';
         if (bookingTimeInput) bookingTimeInput.value = '';
 
         if (!date) {
-            slotsButtonsContainer.innerHTML = '<span style="color: #888; font-size:14px;">Выберите дату в календаре выше...</span>';
+            setContainerMessage(slotsButtonsContainer, 'Выберите дату в календаре выше...', '#888');
             updateBookingSummary();
             return;
         }
@@ -114,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`${API_BASE}/api/slots?date=${encodeURIComponent(date)}`);
             if (res.ok) {
                 const slots = await res.json();
-                slotsButtonsContainer.innerHTML = '';
+                slotsButtonsContainer.replaceChildren();
 
                 if (slots.length === 0) {
                     if (noSlotsMsg) noSlotsMsg.style.display = 'block';
@@ -143,10 +152,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             } else {
-                slotsButtonsContainer.innerHTML = '<span style="color: #ea868f;">Ошибка загрузки окон с сервера.</span>';
+                setContainerMessage(slotsButtonsContainer, 'Ошибка загрузки окон с сервера.', '#ea868f');
             }
         } catch (e) {
-            slotsButtonsContainer.innerHTML = '<span style="color: #ea868f;">Нет связи с сервером (запустите Java).</span>';
+            setContainerMessage(slotsButtonsContainer, 'Нет связи с сервером (запустите Java).', '#ea868f');
         }
         updateBookingSummary();
     }
@@ -297,10 +306,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 const reviews = await res.json();
                 if (reviews.length === 0) {
-                    reviewsContainer.innerHTML = '<p style="color:#888; text-align:center; grid-column:1/-1;">Отзывов пока нет. Будьте первыми!</p>';
+                    reviewsContainer.replaceChildren();
+                    const emptyP = document.createElement('p');
+                    emptyP.style.cssText = 'color:#888; text-align:center; grid-column:1/-1;';
+                    emptyP.textContent = 'Отзывов пока нет. Будьте первыми!';
+                    reviewsContainer.appendChild(emptyP);
                     return;
                 }
-                reviewsContainer.innerHTML = '';
+                reviewsContainer.replaceChildren();
                 reviews.forEach(r => {
                     const stars = '⭐'.repeat(r.rating || 5);
                     const card = document.createElement('div');
@@ -336,7 +349,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         } catch (e) {
-            reviewsContainer.innerHTML = '<p style="color:#888; text-align:center; grid-column:1/-1;">Не удалось загрузить отзывы (проверьте, запущен ли сервер).</p>';
+            reviewsContainer.replaceChildren();
+            const errP = document.createElement('p');
+            errP.style.cssText = 'color:#888; text-align:center; grid-column:1/-1;';
+            errP.textContent = 'Не удалось загрузить отзывы (проверьте, запущен ли сервер).';
+            reviewsContainer.appendChild(errP);
         }
     }
 
@@ -429,14 +446,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    bookingAlert.innerHTML = `
-                        <div style="color: #75b798; font-weight: bold; margin-bottom: 8px;">✓ Заявка успешно отправлена! Номер: #${escapeHtml(data.orderId)}</div>
-                        <div style="background: #202020; border: 1px solid #444; border-radius: 4px; padding: 12px; margin-bottom: 6px; text-align: center;">
-                            <div style="font-size: 12px; color: #aaa; margin-bottom: 4px;">Ваш персональный код отслеживания:</div>
-                            <div style="font-size: 20px; font-weight: bold; color: #e6cc98; letter-spacing: 2px;">${escapeHtml(data.trackingToken)}</div>
-                        </div>
-                        <div style="font-size: 12px; color: #888;">Сохраните этот код — по нему можно в 1 клик проверить статус заказа и скачать готовые фото в блоке ниже!</div>
-                    `;
+                    bookingAlert.replaceChildren();
+
+                    const successTitle = document.createElement('div');
+                    successTitle.style.cssText = 'color: #75b798; font-weight: bold; margin-bottom: 8px;';
+                    successTitle.textContent = `✓ Заявка успешно отправлена! Номер: #${data.publicId || data.orderId || ''}`;
+
+                    const codeBox = document.createElement('div');
+                    codeBox.style.cssText = 'background: #202020; border: 1px solid #444; border-radius: 4px; padding: 12px; margin-bottom: 6px; text-align: center;';
+
+                    const codeBoxLabel = document.createElement('div');
+                    codeBoxLabel.style.cssText = 'font-size: 12px; color: #aaa; margin-bottom: 4px;';
+                    codeBoxLabel.textContent = 'Ваш персональный код отслеживания:';
+
+                    const codeBoxVal = document.createElement('div');
+                    codeBoxVal.style.cssText = 'font-size: 20px; font-weight: bold; color: #e6cc98; letter-spacing: 2px;';
+                    codeBoxVal.textContent = data.trackingToken || '';
+
+                    codeBox.appendChild(codeBoxLabel);
+                    codeBox.appendChild(codeBoxVal);
+
+                    const hintDiv = document.createElement('div');
+                    hintDiv.style.cssText = 'font-size: 12px; color: #888;';
+                    hintDiv.textContent = 'Сохраните этот код — по нему можно в 1 клик проверить статус заказа и скачать готовые фото в блоке ниже!';
+
+                    bookingAlert.appendChild(successTitle);
+                    bookingAlert.appendChild(codeBox);
+                    bookingAlert.appendChild(hintDiv);
+
                     bookingForm.reset();
                     if (bookingDate) loadAvailableTimeSlots(bookingDate);
                     updateBookingSummary();
@@ -505,7 +542,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            statusResult.innerHTML = '<span style="color:#aaa;">Поиск в базе данных...</span>';
+            statusResult.replaceChildren();
+            const searchingSpan = document.createElement('span');
+            searchingSpan.style.color = '#aaa';
+            searchingSpan.textContent = 'Поиск в базе данных...';
+            statusResult.appendChild(searchingSpan);
             statusResult.classList.remove('d-none');
 
             try {
@@ -513,24 +554,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    statusResult.innerHTML = '';
+                    statusResult.replaceChildren();
 
                     const orderNumP = document.createElement('p');
                     orderNumP.style.marginBottom = '6px';
-                    orderNumP.textContent = `Заявка #${data.id || ''}`;
+                    orderNumP.textContent = `Заявка #${data.publicId || data.id || ''}`;
                     if (data.trackingToken) {
-                        orderNumP.innerHTML += ` <span style="font-size:12px; color:#e6cc98;">(${escapeHtml(data.trackingToken)})</span>`;
+                        const tokenSpan = document.createElement('span');
+                        tokenSpan.style.cssText = 'font-size:12px; color:#e6cc98; margin-left: 6px;';
+                        tokenSpan.textContent = `(${data.trackingToken})`;
+                        orderNumP.appendChild(tokenSpan);
                     }
                     statusResult.appendChild(orderNumP);
 
                     const clientP = document.createElement('p');
                     clientP.style.marginBottom = '6px';
-                    clientP.innerHTML = `<strong>Клиент:</strong> <span>${escapeHtml(data.clientName || 'Гость')}</span>`;
+                    const clientStrong = document.createElement('strong');
+                    clientStrong.textContent = 'Клиент: ';
+                    const clientSpan = document.createElement('span');
+                    clientSpan.textContent = data.maskedClientName || data.clientName || 'Гость';
+                    clientP.appendChild(clientStrong);
+                    clientP.appendChild(clientSpan);
                     statusResult.appendChild(clientP);
 
                     const statusP = document.createElement('p');
                     statusP.style.marginBottom = '6px';
-                    statusP.innerHTML = `<strong>Статус заказа:</strong> <span style="color: #e6cc98; font-weight: bold;">${escapeHtml(data.status)}</span>`;
+                    const statusStrong = document.createElement('strong');
+                    statusStrong.textContent = 'Статус заказа: ';
+                    const statusSpan = document.createElement('span');
+                    statusSpan.style.cssText = 'color: #e6cc98; font-weight: bold;';
+                    statusSpan.textContent = data.status || '';
+                    statusP.appendChild(statusStrong);
+                    statusP.appendChild(statusSpan);
                     statusResult.appendChild(statusP);
 
                     if (data.bookingDate) {
@@ -555,12 +610,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else if (response.status === 404) {
                     const errorMsg = await response.text();
-                    statusResult.innerHTML = `<span style="color: #ea868f;">${escapeHtml(errorMsg)}</span>`;
+                    statusResult.replaceChildren();
+                    const errSpan = document.createElement('span');
+                    errSpan.style.color = '#ea868f';
+                    errSpan.textContent = errorMsg;
+                    statusResult.appendChild(errSpan);
                 } else {
-                    statusResult.innerHTML = '<span style="color: #ea868f;">Ошибка при поиске.</span>';
+                    statusResult.replaceChildren();
+                    const errSpan = document.createElement('span');
+                    errSpan.style.color = '#ea868f';
+                    errSpan.textContent = 'Ошибка при поиске.';
+                    statusResult.appendChild(errSpan);
                 }
             } catch (error) {
-                statusResult.innerHTML = '<span style="color: #ea868f;">Нет связи с сервером.</span>';
+                statusResult.replaceChildren();
+                const errSpan = document.createElement('span');
+                errSpan.style.color = '#ea868f';
+                errSpan.textContent = 'Нет связи с сервером.';
+                statusResult.appendChild(errSpan);
             }
         });
     }

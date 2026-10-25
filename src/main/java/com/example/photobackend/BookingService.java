@@ -3,11 +3,13 @@ package com.example.photobackend;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -23,25 +25,25 @@ public class BookingService {
 
     private final BookingRepository bookingRepository;
     private final TimeSlotRepository timeSlotRepository;
-    private final NotificationService notificationService;
     private final PricingService pricingService;
     private final RateLimiterService rateLimiterService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
     public BookingService(BookingRepository bookingRepository,
                           TimeSlotRepository timeSlotRepository,
-                          NotificationService notificationService,
                           PricingService pricingService,
-                          RateLimiterService rateLimiterService) {
+                          RateLimiterService rateLimiterService,
+                          ApplicationEventPublisher eventPublisher) {
         this.bookingRepository = bookingRepository;
         this.timeSlotRepository = timeSlotRepository;
-        this.notificationService = notificationService;
         this.pricingService = pricingService;
         this.rateLimiterService = rateLimiterService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
-     * Атомарное создание заявки на бронирование со строгой транзакционной целостностью.
+     * Атомарное создание заявки со строгой транзакционной целостностью и публикацией асинхронного события.
      */
     @Transactional
     public Map<String, Object> createBooking(BookingCreateRequest req, String clientIp) {
@@ -49,8 +51,8 @@ public class BookingService {
             throw new BadRequestException("Данные заявки не переданы");
         }
 
-        // 1. Серверный расчет стоимости (Single Source of Truth)
-        int calculatedPrice = pricingService.calculatePrice(
+        // 1. Серверный расчет стоимости на BigDecimal с банковским округлением
+        BigDecimal calculatedPrice = pricingService.calculatePrice(
                 req.getShootTypeRate(),
                 req.getHours(),
                 req.isAddonExpress(),
@@ -67,11 +69,13 @@ public class BookingService {
             }
         }
 
-        // 3. Создаем сущность со строгой инициализацией полей (Mass Assignment Protection)
+        // 3. Создаем сущность со строгой инициализацией полей и 128-битным UUID v4
         String nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         String trackingToken = "TRK-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        String publicId = UUID.randomUUID().toString();
 
         Booking booking = new Booking();
+        booking.setPublicId(publicId);
         booking.setClientName(req.getClientName());
         booking.setClientPhone(req.getClientPhone());
         booking.setDetails(req.getDetails());
@@ -86,29 +90,27 @@ public class BookingService {
         booking.setClientIp(clientIp);
 
         Booking saved = bookingRepository.save(booking);
+        BookingResponseDto responseDto = BookingResponseDto.fromEntity(saved);
 
-        // 4. Отправка уведомления фотографу
-        try {
-            notificationService.notifyNewBooking(saved);
-        } catch (Exception e) {
-            log.error("Ошибка отправки уведомления о новой заявке #{}: ", saved.getId(), e);
-        }
+        // 4. Публикуем асинхронное событие приложения для отправки уведомлений после фиксации транзакции
+        eventPublisher.publishEvent(new BookingCreatedEvent(responseDto));
 
-        log.info("Создана новая заявка #{} (код: {}) от клиента: {} ({}), IP: {}, время: {}",
-                saved.getId(), trackingToken, saved.getClientName(), saved.getClientPhone(), clientIp, nowStr);
+        log.info("Создана новая заявка publicId: {} (код: {}) от клиента: {} ({}), IP: {}, время: {}",
+                saved.getPublicId(), trackingToken, saved.getClientName(), saved.getClientPhone(), clientIp, nowStr);
 
         Map<String, Object> resp = new HashMap<>();
         resp.put("success", true);
-        resp.put("orderId", saved.getId());
+        resp.put("orderId", saved.getPublicId()); // Клиенту отдаем исключительно публичный UUID v4
+        resp.put("publicId", saved.getPublicId());
         resp.put("trackingToken", trackingToken);
-        resp.put("message", "Заявка успешно отправлена! Номер вашей заявки: #" + saved.getId());
+        resp.put("message", "Заявка успешно отправлена! Номер вашей заявки: #" + saved.getPublicId());
         return resp;
     }
 
     /**
-     * Безопасная проверка статуса заказа клиентом (по токену или ID + телефону).
+     * Безопасная проверка статуса заказа клиентом (по токену отслеживания или UUID / телефону).
      */
-    public BookingStatusResponse checkStatus(String token, Long orderId, String phone, String clientIp) {
+    public BookingResponseDto checkStatus(String token, String orderIdentifier, String phone, String clientIp) {
         if (!rateLimiterService.tryAcquire("status:" + clientIp, SecurityConstants.STATUS_MAX_REQUESTS, SecurityConstants.STATUS_WINDOW_SECONDS)) {
             throw new TooManyRequestsException("Слишком много запросов. Пожалуйста, подождите минуту.");
         }
@@ -117,27 +119,19 @@ public class BookingService {
 
         if (token != null && !token.isBlank()) {
             bookingOpt = bookingRepository.findByTrackingToken(token.trim().toUpperCase());
-        } else if (orderId != null && phone != null && !phone.isBlank()) {
-            bookingOpt = bookingRepository.findById(orderId)
-                    .filter(b -> isPhoneMatching(phone, b.getClientPhone()));
+        } else if (orderIdentifier != null && !orderIdentifier.isBlank() && phone != null && !phone.isBlank()) {
+            String cleanId = orderIdentifier.trim();
+            bookingOpt = bookingRepository.findByPublicId(cleanId);
+            if (bookingOpt.isEmpty() && cleanId.matches("\\d+")) {
+                bookingOpt = bookingRepository.findById(Long.parseLong(cleanId));
+            }
+            bookingOpt = bookingOpt.filter(b -> isPhoneMatching(phone, b.getClientPhone()));
         } else {
             throw new BadRequestException("Укажите код отслеживания или номер заявки с телефоном.");
         }
 
         Booking b = bookingOpt.orElseThrow(() -> new ResourceNotFoundException("Заказ с указанными данными не найден."));
-
-        String maskedName = BookingStatusResponse.maskName(b.getClientName());
-        String downloadUrl = BookingStatus.COMPLETED.getDisplayName().equalsIgnoreCase(b.getStatus()) ? b.getDownloadUrl() : null;
-
-        return new BookingStatusResponse(
-                b.getId(),
-                b.getTrackingToken(),
-                maskedName,
-                b.getStatus(),
-                b.getBookingDate(),
-                b.getBookingTime(),
-                downloadUrl
-        );
+        return BookingResponseDto.fromEntity(b);
     }
 
     /**
@@ -153,13 +147,13 @@ public class BookingService {
      */
     public Map<String, Object> getStats() {
         long totalCount = bookingRepository.countTotalBookings();
-        long totalIncome = bookingRepository.sumTotalIncome();
+        BigDecimal totalIncome = bookingRepository.sumTotalIncome();
         long newCount = bookingRepository.countByStatusIgnoreCase(BookingStatus.NEW.getDisplayName());
         long completedCount = bookingRepository.countByStatusIgnoreCase(BookingStatus.COMPLETED.getDisplayName());
 
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalCount", totalCount);
-        stats.put("totalIncome", totalIncome);
+        stats.put("totalIncome", totalIncome != null ? totalIncome.setScale(2, PricingConstants.BANKING_ROUNDING) : BigDecimal.ZERO);
         stats.put("newCount", newCount);
         stats.put("completedCount", completedCount);
         return stats;
@@ -169,10 +163,9 @@ public class BookingService {
      * Обновление статуса заявки с автоматическим освобождением слота при отмене.
      */
     @Transactional
-    public BookingResponseDto updateStatus(Long id, String newStatus) {
+    public BookingResponseDto updateStatus(String identifier, String newStatus) {
         String cleanStatus = newStatus != null ? newStatus.replace("\"", "").trim() : "";
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Заявка не найдена"));
+        Booking booking = findBookingByIdentifier(identifier);
 
         booking.setStatus(cleanStatus);
 
@@ -183,13 +176,13 @@ public class BookingService {
                     .ifPresent(slot -> {
                         slot.setBooked(false);
                         timeSlotRepository.save(slot);
-                        log.info("Слот {} {} освобожден в связи с отменой заявки #{}", 
-                                booking.getBookingDate(), booking.getBookingTime(), id);
+                        log.info("Слот {} {} освобожден в связи с отменой заявки {}", 
+                                booking.getBookingDate(), booking.getBookingTime(), identifier);
                     });
         }
 
         Booking saved = bookingRepository.save(booking);
-        log.info("Статус заявки #{} изменен на '{}'", id, cleanStatus);
+        log.info("Статус заявки {} изменен на '{}'", identifier, cleanStatus);
         return BookingResponseDto.fromEntity(saved);
     }
 
@@ -197,13 +190,11 @@ public class BookingService {
      * Обновление деталей заявки.
      */
     @Transactional
-    public BookingResponseDto updateDetails(Long id, String details) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Заявка не найдена"));
-
+    public BookingResponseDto updateDetails(String identifier, String details) {
+        Booking booking = findBookingByIdentifier(identifier);
         booking.setDetails(details != null ? details.replace("\"", "").trim() : "");
         Booking saved = bookingRepository.save(booking);
-        log.info("Детали заявки #{} обновлены", id);
+        log.info("Детали заявки {} обновлены", identifier);
         return BookingResponseDto.fromEntity(saved);
     }
 
@@ -211,9 +202,8 @@ public class BookingService {
      * Редактирование полей заказа администратором.
      */
     @Transactional
-    public BookingResponseDto editBooking(Long id, BookingEditRequestDto updated) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Заявка не найдена"));
+    public BookingResponseDto editBooking(String identifier, BookingEditRequestDto updated) {
+        Booking booking = findBookingByIdentifier(identifier);
 
         if (updated.getDetails() != null) booking.setDetails(updated.getDetails());
         if (updated.getBookingDate() != null) booking.setBookingDate(updated.getBookingDate());
@@ -221,7 +211,7 @@ public class BookingService {
         if (updated.getTotalPrice() != null) booking.setTotalPrice(updated.getTotalPrice());
 
         Booking saved = bookingRepository.save(booking);
-        log.info("Данные заявки #{} отредактированы", id);
+        log.info("Данные заявки {} отредактированы", identifier);
         return BookingResponseDto.fromEntity(saved);
     }
 
@@ -229,20 +219,17 @@ public class BookingService {
      * Сохранение ссылки на готовые фото с валидацией протокола.
      */
     @Transactional
-    public BookingResponseDto updateDownloadUrl(Long id, String url) {
+    public BookingResponseDto updateDownloadUrl(String identifier, String url) {
         String cleanUrl = url != null ? url.replace("\"", "").trim() : "";
 
-        // Защита от javascript:, data: Stored XSS
         if (!cleanUrl.isEmpty() && !cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
             throw new BadRequestException("Недопустимый формат ссылки. Ссылка должна начинаться с https:// или http://");
         }
 
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Заявка не найдена"));
-
+        Booking booking = findBookingByIdentifier(identifier);
         booking.setDownloadUrl(cleanUrl);
         Booking saved = bookingRepository.save(booking);
-        log.info("Ссылка на результат для заявки #{} сохранена", id);
+        log.info("Ссылка на результат для заявки {} сохранена", identifier);
         return BookingResponseDto.fromEntity(saved);
     }
 
@@ -250,23 +237,38 @@ public class BookingService {
      * Удаление заявки с освобождением связанного слота.
      */
     @Transactional
-    public void deleteBooking(Long id) {
-        Booking booking = bookingRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Заявка не найдена"));
+    public void deleteBooking(String identifier) {
+        Booking booking = findBookingByIdentifier(identifier);
 
-        // Освобождаем занятый слот в расписании (предотвращение мертвой блокировки)
         if (booking.getBookingDate() != null && booking.getBookingTime() != null) {
             timeSlotRepository.findBySlotDateAndSlotTime(booking.getBookingDate(), booking.getBookingTime())
                     .ifPresent(slot -> {
                         slot.setBooked(false);
                         timeSlotRepository.save(slot);
-                        log.info("Слот {} {} освобожден при удалении заявки #{}", 
-                                booking.getBookingDate(), booking.getBookingTime(), id);
+                        log.info("Слот {} {} освобожден при удалении заявки {}", 
+                                booking.getBookingDate(), booking.getBookingTime(), identifier);
                     });
         }
 
         bookingRepository.delete(booking);
-        log.info("Заявка #{} успешно удалена", id);
+        log.info("Заявка {} успешно удалена", identifier);
+    }
+
+    // Совместимый метод поиска по числовому Long id
+    public void deleteBooking(Long id) {
+        deleteBooking(String.valueOf(id));
+    }
+
+    private Booking findBookingByIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            throw new ResourceNotFoundException("Идентификатор заявки не указан");
+        }
+        String clean = identifier.trim();
+        Optional<Booking> opt = bookingRepository.findByPublicId(clean);
+        if (opt.isEmpty() && clean.matches("\\d+")) {
+            opt = bookingRepository.findById(Long.parseLong(clean));
+        }
+        return opt.orElseThrow(() -> new ResourceNotFoundException("Заявка не найдена"));
     }
 
     private boolean isPhoneMatching(String phone1, String phone2) {

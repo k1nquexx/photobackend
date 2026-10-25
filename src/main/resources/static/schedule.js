@@ -50,7 +50,11 @@
 
         document.getElementById('currentDateTitle').textContent = date;
         const container = document.getElementById('slotsContainer');
-        container.innerHTML = '<p class="slots-msg-loading">Загрузка окон...</p>';
+        container.replaceChildren();
+        const loadP = document.createElement('p');
+        loadP.className = 'slots-msg-loading';
+        loadP.textContent = 'Загрузка окон...';
+        container.appendChild(loadP);
 
         try {
             const res = await fetch(`${API_BASE}/api/slots/all?date=${encodeURIComponent(date)}`, {
@@ -66,10 +70,13 @@
 
             if (res.ok) {
                 const slots = await res.json();
-                container.innerHTML = '';
+                container.replaceChildren();
 
                 if (slots.length === 0) {
-                    container.innerHTML = '<p class="slots-msg-empty">На этот день еще нет окон. Нажмите на кнопки выше, чтобы добавить окна для клиентов.</p>';
+                    const emptyP = document.createElement('p');
+                    emptyP.className = 'slots-msg-empty';
+                    emptyP.textContent = 'На этот день еще нет окон. Нажмите на кнопки выше, чтобы добавить окна для клиентов.';
+                    container.appendChild(emptyP);
                     return;
                 }
 
@@ -100,7 +107,11 @@
                 });
             }
         } catch (e) {
-            container.innerHTML = '<p class="slots-msg-error">Ошибка загрузки окон.</p>';
+            container.replaceChildren();
+            const errP = document.createElement('p');
+            errP.className = 'slots-msg-error';
+            errP.textContent = 'Ошибка загрузки окон.';
+            container.appendChild(errP);
         }
     }
 

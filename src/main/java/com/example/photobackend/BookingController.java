@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -15,7 +16,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
+@Validated
 public class BookingController {
 
     private final BookingService bookingService;
@@ -42,8 +43,8 @@ public class BookingController {
     }
 
     @PostMapping("/pricing/calculate")
-    public ResponseEntity<Map<String, Object>> calculatePrice(@RequestBody BookingCreateRequest req) {
-        int price = pricingService.calculatePrice(
+    public ResponseEntity<Map<String, Object>> calculatePrice(@Valid @RequestBody BookingCreateRequest req) {
+        java.math.BigDecimal price = pricingService.calculatePrice(
                 req.getShootTypeRate(),
                 req.getHours(),
                 req.isAddonExpress(),
@@ -100,12 +101,12 @@ public class BookingController {
 
     @GetMapping("/status")
     public ResponseEntity<?> checkStatus(@RequestParam(required = false) String token,
-                                         @RequestParam(required = false) Long orderId,
+                                         @RequestParam(required = false) String orderId,
                                          @RequestParam(required = false) String phone,
                                          HttpServletRequest request) {
         String clientIp = getClientIp(request);
         try {
-            BookingStatusResponse response = bookingService.checkStatus(token, orderId, phone, clientIp);
+            BookingResponseDto response = bookingService.checkStatus(token, orderId, phone, clientIp);
             return ResponseEntity.ok(response);
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
@@ -150,7 +151,7 @@ public class BookingController {
     @AdminOnly
     @PatchMapping("/booking/{id}/status")
     public ResponseEntity<?> updateStatus(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody String newStatus,
             @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
 
@@ -166,10 +167,14 @@ public class BookingController {
         }
     }
 
+    public ResponseEntity<?> updateStatus(Long id, String newStatus, String token) {
+        return updateStatus(String.valueOf(id), newStatus, token);
+    }
+
     @AdminOnly
     @PatchMapping("/booking/{id}/details")
     public ResponseEntity<?> updateDetails(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody String details,
             @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
 
@@ -185,11 +190,15 @@ public class BookingController {
         }
     }
 
+    public ResponseEntity<?> updateDetails(Long id, String details, String token) {
+        return updateDetails(String.valueOf(id), details, token);
+    }
+
     @AdminOnly
     @PatchMapping("/booking/{id}/edit")
     public ResponseEntity<?> editBooking(
-            @PathVariable Long id,
-            @RequestBody BookingEditRequestDto updated,
+            @PathVariable String id,
+            @Valid @RequestBody BookingEditRequestDto updated,
             @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
 
         if (!adminAuthService.isValid(token)) {
@@ -204,10 +213,14 @@ public class BookingController {
         }
     }
 
+    public ResponseEntity<?> editBooking(Long id, BookingEditRequestDto updated, String token) {
+        return editBooking(String.valueOf(id), updated, token);
+    }
+
     @AdminOnly
     @PatchMapping("/booking/{id}/download-url")
     public ResponseEntity<?> updateDownloadUrl(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestBody String url,
             @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
 
@@ -225,10 +238,14 @@ public class BookingController {
         }
     }
 
+    public ResponseEntity<?> updateDownloadUrl(Long id, String url, String token) {
+        return updateDownloadUrl(String.valueOf(id), url, token);
+    }
+
     @AdminOnly
     @DeleteMapping("/booking/{id}")
     public ResponseEntity<?> deleteBooking(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestHeader(value = SecurityConstants.AUTH_HEADER_NAME, required = false) String token) {
 
         if (!adminAuthService.isValid(token)) {
@@ -241,6 +258,10 @@ public class BookingController {
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         }
+    }
+
+    public ResponseEntity<?> deleteBooking(Long id, String token) {
+        return deleteBooking(String.valueOf(id), token);
     }
 
     private String getClientIp(HttpServletRequest request) {

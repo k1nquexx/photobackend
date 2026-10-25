@@ -3,6 +3,7 @@ package com.example.photobackend;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -28,52 +29,75 @@ public class AdminAuthService {
     @Value("${admin.password:}")
     private String adminPassword;
 
-    // Срок действия сессии администратора: 2 часа
-    private static final long TOKEN_TTL_SECONDS = 2 * 3600;
+    @Value("${admin.password.hash:}")
+    private String adminPasswordHash;
+
+    private final AppConfigProperties appConfigProperties;
 
     // Секретный ключ для подписи stateless HMAC-SHA256 токенов
     private byte[] hmacKey;
 
+    // Ожидаемый хэш пароля администратора для безопасного побайтового сравнения за постоянное время
+    private byte[] expectedPasswordHashBytes;
+
     // Черный список отозванных токенов при явном выходе (logout)
     private final Set<String> revokedTokens = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
+    @Autowired
+    public AdminAuthService(AppConfigProperties appConfigProperties) {
+        this.appConfigProperties = appConfigProperties;
+    }
+
     @PostConstruct
     public void init() {
-        if (adminPassword == null || adminPassword.isBlank() || "admin2026".equalsIgnoreCase(adminPassword.trim())) {
-            String generated = "admin-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-            this.adminPassword = generated;
-
-            String banner = "\n" +
-                "==================================================================================\n" +
-                "[ВНИМАНИЕ БЕЗОПАСНОСТИ] Переменная окружения ADMIN_PASSWORD не задана!\n" +
-                "В целях защиты статический пароль 'admin2026' ОТКЛЮЧЕН.\n" +
-                "Сгенерирован временный случайный пароль администратора:\n\n" +
-                "    >>>  " + generated + "  <<<\n\n" +
-                "Используйте его для входа в /admin.html.\n" +
-                "Для установки постоянного пароля задайте переменную окружения: ADMIN_PASSWORD=...\n" +
-                "==================================================================================";
-            log.warn(banner);
-        } else {
-            log.info("Пароль администратора успешно инициализирован из защищенной конфигурации.");
-        }
-
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
-            this.hmacKey = md.digest(("HMAC_SALT_2026:" + adminPassword.trim()).getBytes(StandardCharsets.UTF_8));
+
+            // 1. Проверяем наличие постоянного хэша из переменной окружения ADMIN_PASSWORD_HASH
+            if (adminPasswordHash != null && !adminPasswordHash.isBlank()) {
+                this.expectedPasswordHashBytes = hexToBytes(adminPasswordHash.trim());
+                this.hmacKey = md.digest(("HMAC_SALT_2026_HASH:" + adminPasswordHash.trim()).getBytes(StandardCharsets.UTF_8));
+                log.info("Пароль администратора успешно инициализирован из постоянного хэша ADMIN_PASSWORD_HASH.");
+                return;
+            }
+
+            // 2. Если хэш не задан, проверяем обычный пароль
+            if (adminPassword == null || adminPassword.isBlank() || "admin2026".equalsIgnoreCase(adminPassword.trim())) {
+                String generated = "admin-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+                this.adminPassword = generated;
+                this.expectedPasswordHashBytes = md.digest(generated.getBytes(StandardCharsets.UTF_8));
+                this.hmacKey = md.digest(("HMAC_SALT_2026:" + generated).getBytes(StandardCharsets.UTF_8));
+
+                String banner = "\n" +
+                    "==================================================================================\n" +
+                    "[ВНИМАНИЕ БЕЗОПАСНОСТИ] Переменная окружения ADMIN_PASSWORD / ADMIN_PASSWORD_HASH не задана!\n" +
+                    "В целях защиты статический пароль 'admin2026' ОТКЛЮЧЕН.\n" +
+                    "Сгенерирован временный случайный пароль администратора:\n\n" +
+                    "    >>>  " + generated + "  <<<\n\n" +
+                    "Используйте его для входа в /admin.html.\n" +
+                    "Для установки постоянного хэша задайте переменную окружения: ADMIN_PASSWORD_HASH=...\n" +
+                    "==================================================================================";
+                log.warn(banner);
+            } else {
+                this.expectedPasswordHashBytes = md.digest(adminPassword.trim().getBytes(StandardCharsets.UTF_8));
+                this.hmacKey = md.digest(("HMAC_SALT_2026:" + adminPassword.trim()).getBytes(StandardCharsets.UTF_8));
+                log.info("Пароль администратора успешно инициализирован из защищенной конфигурации.");
+            }
         } catch (NoSuchAlgorithmException e) {
-            log.error("Алгоритм SHA-256 недоступен для инициализации HMAC", e);
-            this.hmacKey = adminPassword.trim().getBytes(StandardCharsets.UTF_8);
+            log.error("Алгоритм SHA-256 недоступен", e);
         }
     }
 
     public String login(String password) {
-        if (password == null || adminPassword == null) {
+        if (password == null || this.expectedPasswordHashBytes == null) {
             return null;
         }
 
-        if (verifyPassword(password.trim(), adminPassword.trim())) {
+        // Проверка пароля за постоянное время (Constant-Time Digest Comparison)
+        if (verifyPasswordConstantTime(password.trim())) {
             long now = Instant.now().getEpochSecond();
-            long exp = now + TOKEN_TTL_SECONDS;
+            long ttl = appConfigProperties != null ? appConfigProperties.getSecurity().getTokenTtlSeconds() : 7200;
+            long exp = now + ttl;
             String payload = now + ":" + exp + ":" + UUID.randomUUID().toString();
             String encodedPayload = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
             String signature = sign(encodedPayload);
@@ -122,14 +146,13 @@ public class AdminAuthService {
         }
     }
 
-    // Регулярная очистка устаревших токенов из памяти каждые 5 минут для защиты Heap от переполнения
     @Scheduled(fixedRate = 300000)
     public void evictExpiredTokens() {
         int before = revokedTokens.size();
         revokedTokens.removeIf(this::isTokenExpired);
         int after = revokedTokens.size();
         if (before != after) {
-            log.debug("Очистка отозванных токенов: удалено {} устаревших записей, осталось {}", before - after, after);
+            log.debug("Очистка отозванных токенов: удалено {} устаревших записей", before - after);
         }
     }
 
@@ -164,15 +187,27 @@ public class AdminAuthService {
         }
     }
 
-    private boolean verifyPassword(String inputPassword, String expectedPassword) {
+    /**
+     * Сравнение хэшей за постоянное время (защита от атак по времени / Timing Attacks).
+     */
+    private boolean verifyPasswordConstantTime(String inputPassword) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] inputHash = md.digest(inputPassword.getBytes(StandardCharsets.UTF_8));
-            byte[] expectedHash = md.digest(expectedPassword.getBytes(StandardCharsets.UTF_8));
-            return MessageDigest.isEqual(inputHash, expectedHash);
+            return MessageDigest.isEqual(inputHash, this.expectedPasswordHashBytes);
         } catch (NoSuchAlgorithmException e) {
-            log.error("Алгоритм SHA-256 недоступен для проверки пароля", e);
-            return inputPassword.equals(expectedPassword);
+            log.error("SHA-256 недоступен", e);
+            return false;
         }
+    }
+
+    private byte[] hexToBytes(String hex) {
+        int len = hex.length();
+        byte[] data = new byte[len / 2];
+        for (int i = 0; i < len; i += 2) {
+            data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
+                                 + Character.digit(hex.charAt(i+1), 16));
+        }
+        return data;
     }
 }

@@ -90,10 +90,21 @@ let allBookingsList = [];
         }
     }
 
+    function setTableMessage(tableBody, text, isError = false) {
+        tableBody.replaceChildren();
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 7;
+        if (isError) td.className = 'table-error';
+        td.textContent = text;
+        tr.appendChild(td);
+        tableBody.appendChild(tr);
+    }
+
     async function loadBookings(page = 0) {
         currentBookingPage = page;
         const tableBody = document.getElementById('bookingsTable');
-        tableBody.innerHTML = '<tr><td colspan="7">Загрузка...</td></tr>';
+        setTableMessage(tableBody, 'Загрузка...');
 
         try {
             const response = await fetch(`${API_BASE}/api/booking?page=${page}&size=20`, { headers: getAuthHeaders() });
@@ -120,10 +131,10 @@ let allBookingsList = [];
 
                 filterBookings();
             } else {
-                tableBody.innerHTML = '<tr><td colspan="7" class="table-error">Ошибка сервера</td></tr>';
+                setTableMessage(tableBody, 'Ошибка сервера', true);
             }
         } catch (error) {
-            tableBody.innerHTML = '<tr><td colspan="7" class="table-error">Нет связи с сервером (Java запущена?)</td></tr>';
+            setTableMessage(tableBody, 'Нет связи с сервером (Java запущена?)', true);
         }
     }
 
@@ -149,9 +160,9 @@ let allBookingsList = [];
             return matchesQuery && matchesStatus;
         });
 
-        tableBody.innerHTML = '';
+        tableBody.replaceChildren();
         if (filtered.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="7">Заявок не найдено.</td></tr>';
+            setTableMessage(tableBody, 'Заявок не найдено.');
             return;
         }
 
@@ -160,7 +171,12 @@ let allBookingsList = [];
 
             // 1. ID
             const tdId = document.createElement('td');
-            tdId.textContent = `#${b.id}`;
+            if (b.publicId) {
+                tdId.textContent = `#${b.publicId.substring(0, 8)}...`;
+                tdId.title = b.publicId;
+            } else {
+                tdId.textContent = `#${b.id}`;
+            }
             tr.appendChild(tdId);
 
             // 2. Клиент + Tracking Token + Время создания и IP
@@ -454,7 +470,7 @@ let allBookingsList = [];
     async function loadAdminReviews(page = 0) {
         currentReviewPage = page;
         const tableBody = document.getElementById('reviewsTable');
-        tableBody.innerHTML = '<tr><td colspan="7">Загрузка отзывов...</td></tr>';
+        setTableMessage(tableBody, 'Загрузка отзывов...');
         try {
             const res = await fetch(`${API_BASE}/api/reviews/all?page=${page}&size=20`, { headers: getAuthHeaders() });
             if (res.status === 401) {
@@ -479,9 +495,9 @@ let allBookingsList = [];
                 document.getElementById('prevReviewBtn').disabled = (currentReviewPage <= 0);
                 document.getElementById('nextReviewBtn').disabled = (currentReviewPage >= totalReviewPages - 1);
 
-                tableBody.innerHTML = '';
+                tableBody.replaceChildren();
                 if (reviews.length === 0) {
-                    tableBody.innerHTML = '<tr><td colspan="7">Отзывов пока нет.</td></tr>';
+                    setTableMessage(tableBody, 'Отзывов пока нет.');
                     return;
                 }
 
@@ -556,7 +572,7 @@ let allBookingsList = [];
                 });
             }
         } catch (e) {
-            tableBody.innerHTML = '<tr><td colspan="7" class="table-error">Ошибка загрузки отзывов</td></tr>';
+            setTableMessage(tableBody, 'Ошибка загрузки отзывов', true);
         }
     }
 

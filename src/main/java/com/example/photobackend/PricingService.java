@@ -1,56 +1,85 @@
 package com.example.photobackend;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
 
 @Service
 public class PricingService {
 
-    public static final int RATE_PORTRAIT = PricingConstants.RATE_PORTRAIT;
-    public static final int RATE_EVENT = PricingConstants.RATE_EVENT;
-    public static final int ADDON_EXPRESS_PRICE = PricingConstants.ADDON_EXPRESS_PRICE;
-    public static final int ADDON_STUDIO_PRICE = PricingConstants.ADDON_STUDIO_PRICE;
+    public static final BigDecimal RATE_PORTRAIT = PricingConstants.RATE_PORTRAIT;
+    public static final BigDecimal RATE_EVENT = PricingConstants.RATE_EVENT;
+    public static final BigDecimal ADDON_EXPRESS_PRICE = PricingConstants.ADDON_EXPRESS_PRICE;
+    public static final BigDecimal ADDON_STUDIO_PRICE = PricingConstants.ADDON_STUDIO_PRICE;
 
-    // Единый источник правды для прайс-листа (Single Source of Truth)
+    private final AppConfigProperties appConfigProperties;
+
+    @Autowired
+    public PricingService(AppConfigProperties appConfigProperties) {
+        this.appConfigProperties = appConfigProperties;
+    }
+
     public Map<String, Object> getPricingConfig() {
         Map<String, Object> config = new HashMap<>();
-        config.put("portraitRate", PricingConstants.RATE_PORTRAIT);
-        config.put("eventRate", PricingConstants.RATE_EVENT);
-        config.put("addonExpressPrice", PricingConstants.ADDON_EXPRESS_PRICE);
-        config.put("addonStudioPrice", PricingConstants.ADDON_STUDIO_PRICE);
+        BigDecimal portrait = appConfigProperties != null ? appConfigProperties.getPricing().getRatePortrait() : RATE_PORTRAIT;
+        BigDecimal event = appConfigProperties != null ? appConfigProperties.getPricing().getRateEvent() : RATE_EVENT;
+        BigDecimal express = appConfigProperties != null ? appConfigProperties.getPricing().getAddonExpress() : ADDON_EXPRESS_PRICE;
+        BigDecimal studio = appConfigProperties != null ? appConfigProperties.getPricing().getAddonStudio() : ADDON_STUDIO_PRICE;
+
+        config.put("portraitRate", portrait.setScale(2, PricingConstants.BANKING_ROUNDING));
+        config.put("eventRate", event.setScale(2, PricingConstants.BANKING_ROUNDING));
+        config.put("addonExpressPrice", express.setScale(2, PricingConstants.BANKING_ROUNDING));
+        config.put("addonStudioPrice", studio.setScale(2, PricingConstants.BANKING_ROUNDING));
         return config;
     }
 
-    public int calculatePrice(Integer shootTypeRate, Integer hours, boolean addonExpress, boolean addonStudio, String promoCode) {
+    /**
+     * Основной расчет стоимости на BigDecimal с банковским округлением (RoundingMode.HALF_EVEN).
+     */
+    public BigDecimal calculatePrice(BigDecimal shootTypeRate, Integer hours, boolean addonExpress, boolean addonStudio, String promoCode) {
         int validHours = (hours == null || hours < PricingConstants.MIN_HOURS) 
                 ? PricingConstants.DEFAULT_HOURS 
                 : Math.min(hours, PricingConstants.MAX_HOURS);
 
-        int rate = PricingConstants.RATE_PORTRAIT;
-        if (shootTypeRate != null && shootTypeRate >= PricingConstants.RATE_EVENT) {
-            rate = PricingConstants.RATE_EVENT;
+        BigDecimal portraitRate = appConfigProperties != null ? appConfigProperties.getPricing().getRatePortrait() : RATE_PORTRAIT;
+        BigDecimal eventRate = appConfigProperties != null ? appConfigProperties.getPricing().getRateEvent() : RATE_EVENT;
+        BigDecimal expressPrice = appConfigProperties != null ? appConfigProperties.getPricing().getAddonExpress() : ADDON_EXPRESS_PRICE;
+        BigDecimal studioPrice = appConfigProperties != null ? appConfigProperties.getPricing().getAddonStudio() : ADDON_STUDIO_PRICE;
+
+        BigDecimal rate = portraitRate;
+        if (shootTypeRate != null && shootTypeRate.compareTo(eventRate) >= 0) {
+            rate = eventRate;
         }
 
-        int total = rate * validHours;
+        BigDecimal total = rate.multiply(BigDecimal.valueOf(validHours));
 
         if (addonExpress) {
-            total += PricingConstants.ADDON_EXPRESS_PRICE;
+            total = total.add(expressPrice);
         }
         if (addonStudio) {
-            total += PricingConstants.ADDON_STUDIO_PRICE;
+            total = total.add(studioPrice);
         }
 
         if (promoCode != null) {
             String code = promoCode.trim().toUpperCase();
             if (PricingConstants.PROMO_START10.equals(code)) {
-                total = (int) Math.round(total * PricingConstants.PROMO_START10_DISCOUNT_MULTIPLIER);
+                total = total.multiply(PricingConstants.PROMO_START10_DISCOUNT_MULTIPLIER);
             } else if (PricingConstants.PROMO_FOTO500.equals(code)) {
-                total = Math.max(0, total - PricingConstants.PROMO_FOTO500_DISCOUNT_RUB);
+                total = total.subtract(PricingConstants.PROMO_FOTO500_DISCOUNT_RUB).max(BigDecimal.ZERO);
             }
         }
 
-        return total;
+        return total.setScale(2, PricingConstants.BANKING_ROUNDING);
+    }
+
+    // Перегруженный метод для совместимости со старыми целочисленными вызовами
+    public int calculatePrice(Integer shootTypeRate, Integer hours, boolean addonExpress, boolean addonStudio, String promoCode) {
+        BigDecimal rate = shootTypeRate != null ? BigDecimal.valueOf(shootTypeRate) : null;
+        BigDecimal result = calculatePrice(rate, hours, addonExpress, addonStudio, promoCode);
+        return result.setScale(0, RoundingMode.HALF_EVEN).intValue();
     }
 }

@@ -82,10 +82,10 @@ class PhotobackendApplicationTests {
 
     @Test
     void testPiiMasking() {
-        assertEquals("Алексей С.", BookingStatusResponse.maskName("Алексей Смирнов"));
-        assertEquals("Иван", BookingStatusResponse.maskName("Иван"));
-        assertEquals("Клиент", BookingStatusResponse.maskName(null));
-        assertEquals("Клиент", BookingStatusResponse.maskName("   "));
+        assertEquals("Алексей С.", BookingResponseDto.maskName("Алексей Смирнов"));
+        assertEquals("Иван", BookingResponseDto.maskName("Иван"));
+        assertEquals("Клиент", BookingResponseDto.maskName(null));
+        assertEquals("Клиент", BookingResponseDto.maskName("   "));
     }
 
     @Test
@@ -102,26 +102,26 @@ class PhotobackendApplicationTests {
         Long orderId = booking.getId();
 
         // 1. Попытка запросить с чужим номером телефона -> 404 (доступ запрещен)
-        ResponseEntity<?> failedResp = bookingController.checkStatus(null, orderId, "+7 (999) 000-00-00", null);
+        ResponseEntity<?> failedResp = bookingController.checkStatus(null, String.valueOf(orderId), "+7 (999) 000-00-00", null);
         assertEquals(HttpStatus.NOT_FOUND, failedResp.getStatusCode());
 
         // 2. Попытка запросить с несуществующим ID -> 404
-        ResponseEntity<?> notFoundResp = bookingController.checkStatus(null, 999999L, "+7 (999) 111-22-33", null);
+        ResponseEntity<?> notFoundResp = bookingController.checkStatus(null, "999999", "+7 (999) 111-22-33", null);
         assertEquals(HttpStatus.NOT_FOUND, notFoundResp.getStatusCode());
 
         // 3. Запрос с правильным ID и телефоном (даже в другом формате 89991112233) -> 200 OK
-        ResponseEntity<?> successResp = bookingController.checkStatus(null, orderId, "89991112233", null);
+        ResponseEntity<?> successResp = bookingController.checkStatus(null, String.valueOf(orderId), "89991112233", null);
         assertEquals(HttpStatus.OK, successResp.getStatusCode());
-        assertTrue(successResp.getBody() instanceof BookingStatusResponse);
+        assertTrue(successResp.getBody() instanceof BookingResponseDto);
 
-        BookingStatusResponse status = (BookingStatusResponse) successResp.getBody();
+        BookingResponseDto status = (BookingResponseDto) successResp.getBody();
         assertEquals("Мария И.", status.getMaskedClientName());
         assertEquals("https://disk.yandex.ru/d/secret-photos-link", status.getDownloadUrl());
 
         // 4. Запрос в 1 клик по trackingToken (удобство для клиента) -> 200 OK
         ResponseEntity<?> tokenResp = bookingController.checkStatus("TRK-MARIA001", null, null, null);
         assertEquals(HttpStatus.OK, tokenResp.getStatusCode());
-        BookingStatusResponse tokenStatus = (BookingStatusResponse) tokenResp.getBody();
+        BookingResponseDto tokenStatus = (BookingResponseDto) tokenResp.getBody();
         assertEquals("Мария И.", tokenStatus.getMaskedClientName());
         assertEquals("TRK-MARIA001", tokenStatus.getTrackingToken());
     }
@@ -169,8 +169,9 @@ class PhotobackendApplicationTests {
 
         long total = bookingRepository.countTotalBookings();
         assertTrue(total >= 0);
-        long income = bookingRepository.sumTotalIncome();
-        assertTrue(income >= 0);
+        java.math.BigDecimal income = bookingRepository.sumTotalIncome();
+        assertNotNull(income);
+        assertTrue(income.compareTo(java.math.BigDecimal.ZERO) >= 0);
         long newCount = bookingRepository.countByStatusIgnoreCase("Новая");
         assertTrue(newCount >= 0);
 
